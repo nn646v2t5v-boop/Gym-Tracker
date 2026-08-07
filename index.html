@@ -122,6 +122,7 @@ const MUSCLE_GROUPS = [
   {id:'biceps', name:'Biceps', emoji:'💪'},
   {id:'triceps', name:'Triceps', emoji:'⚡'},
   {id:'core', name:'Core', emoji:'🧱'},
+  {id:'stretch', name:'Stretch', emoji:'🧘'},
 ];
 const MUSCLE_MAP = Object.fromEntries(MUSCLE_GROUPS.map(m=>[m.id,m]));
 
@@ -149,6 +150,7 @@ const PRESET_EXERCISES = [
   {id:'cable_reverse_fly', name:'Cable Reverse Fly', muscle:'back', desc:'Standing at a cable crossover, pull the handles out and back with arms crossed. Rear delts, rhomboids, upper back, constant tension.'},
   {id:'shrugs', name:'Shrugs', muscle:'back', desc:'Shrug a barbell or dumbbells straight up toward your ears and lower with control. Traps.'},
   {id:'farmers_walk', name:'Farmers Walk', muscle:'back', desc:'Carry a heavy weight in each hand and walk for distance or time — a typical set is about 5 minutes, so feel free to log minutes in the reps field. Traps, grip, core, full-body.'},
+  {id:'cable_face_pull_back', name:'Cable Face Pull', muscle:'back', desc:'Rope attachment, pull toward your face with elbows high. Upper back, rhomboids, rear delts.'},
   {id:'back_squat', name:'Back Squat', muscle:'legs', desc:'Barbell across your upper back, squat down and stand back up. Quads, glutes, hamstrings.'},
   {id:'leg_press', name:'Leg Press', muscle:'legs', desc:'Seated machine, press a weighted platform with your legs. Quads, glutes, hamstrings.'},
   {id:'inclined_leg_press', name:'Inclined Leg Press', muscle:'legs', desc:'Leg press on an inclined sled. Quads, glutes, hamstrings, slightly different angle than the standard leg press.'},
@@ -224,11 +226,12 @@ function loadState(){
     workouts: [],
     goals: [],
     settings: {
-      weeklySetTarget: Object.fromEntries(MUSCLE_GROUPS.filter(m=>m.id!=='core').map(m=>[m.id,10])),
+      weeklySetTarget: Object.fromEntries(MUSCLE_GROUPS.filter(m=>m.id!=='core' && m.id!=='stretch').map(m=>[m.id,10])),
       weeklyCoreMinuteTarget: 20,
       weeklyRunDistanceTarget: 40,
       weeklyBoxingMinuteTarget: 60,
       dailyProteinTarget: 150,
+      weeklyStretchSessionTarget: 3,
     },
     earnedBadgeIds: [],
     lastExportAt: null,
@@ -373,6 +376,7 @@ function dayHasActivity(w){
   return (w.entries && w.entries.length>0)
     || (Number(w.coreMinutes)||0) > 0
     || (Number(w.boxingMinutes)||0) > 0
+    || (Number(w.stretchMinutes)||0) > 0
     || (w.runs && w.runs.length>0);
 }
 function distinctWorkoutDatesSorted(){
@@ -423,6 +427,11 @@ function computeWeeklyStats(monday, sunday){
     if(coreMinutes>0){
       stats.core.minutes += coreMinutes;
       stats.core.sessionDates.add(w.date);
+    }
+    const stretchMinutes = Number(w.stretchMinutes)||0;
+    if(stretchMinutes>0){
+      stats.stretch.minutes += stretchMinutes;
+      stats.stretch.sessionDates.add(w.date);
     }
   });
   MUSCLE_GROUPS.forEach(m=> stats[m.id].sessions = stats[m.id].sessionDates.size);
@@ -610,7 +619,7 @@ function renderLogTab(){
   html += `<h2 class="section-title">Core</h2>
   <div class="card">
     <div class="row">
-      <div><div class="name">🧱 Core work</div><div class="muscle-tag">Just log time — no sets or reps needed</div></div>
+      <div><div class="name">🧱 Core Work</div></div>
     </div>
     <div class="row" style="margin-top:10px;gap:8px;">
       <button class="btn secondary small" data-action="core-adjust" data-delta="-5">-5</button>
@@ -625,7 +634,7 @@ function renderLogTab(){
   html += `<h2 class="section-title">Cardio</h2>
   <div class="card">
     <div class="row">
-      <div><div class="name">🏃 Running</div><div class="muscle-tag">Distance & time — pace auto-calculated</div></div>
+      <div><div class="name">🏃 Running</div><div class="muscle-tag">Distance & Time</div></div>
     </div>
     ${runs.length ? `<table class="set-table">
       <thead><tr><th>Km</th><th>Min</th><th style="width:22%;">Pace</th><th style="width:10%;"></th></tr></thead>
@@ -670,6 +679,19 @@ function renderLogTab(){
     <div style="font-size:12px;color:var(--text-dim);margin-top:6px;text-align:center;">${proteinGrams}g of ${proteinTarget}g today${proteinGrams>=proteinTarget ? ' — target hit 💪' : ''}</div>
   </div>`;
 
+  const stretchMinutes = workout ? (Number(workout.stretchMinutes)||0) : 0;
+  html += `<h2 class="section-title">Stretch</h2>
+  <div class="card">
+    <div class="row">
+      <div><div class="name">🧘 Stretch</div></div>
+    </div>
+    <div class="row" style="margin-top:10px;gap:8px;">
+      <button class="btn secondary small" data-action="stretch-adjust" data-delta="-5">-5</button>
+      <input type="number" id="stretch-minutes-input" min="0" step="1" value="${stretchMinutes}" style="text-align:center;">
+      <button class="btn secondary small" data-action="stretch-adjust" data-delta="5">+5</button>
+    </div>
+  </div>`;
+
   return html;
 }
 
@@ -696,7 +718,7 @@ function renderExercisePicker(){
         <label class="field-label">Exercise name</label>
         <input type="text" id="custom-ex-name" placeholder="e.g. Cable Fly">
         <label class="field-label">Muscle group</label>
-        <select id="custom-ex-muscle">${MUSCLE_GROUPS.filter(m=>m.id!=='core').map(m=>`<option value="${m.id}">${m.emoji} ${m.name}</option>`).join('')}</select>
+        <select id="custom-ex-muscle">${MUSCLE_GROUPS.filter(m=>m.id!=='core' && m.id!=='stretch').map(m=>`<option value="${m.id}">${m.emoji} ${m.name}</option>`).join('')}</select>
         <button class="btn block" style="margin-top:10px;" id="save-custom-ex">Add & Use</button>
       </div>
       <a href="#" class="link-btn" id="show-custom-ex-form">+ Add custom exercise</a>
@@ -726,13 +748,16 @@ function renderWeekTab(){
   MUSCLE_GROUPS.forEach(m=>{
     const st = stats[m.id];
     const isCore = m.id==='core';
-    const target = isCore ? (state.settings.weeklyCoreMinuteTarget || 20) : (targets[m.id] || 10);
-    const measure = isCore ? st.minutes : st.sets;
+    const isStretch = m.id==='stretch';
+    const target = isStretch ? (state.settings.weeklyStretchSessionTarget || 3) : isCore ? (state.settings.weeklyCoreMinuteTarget || 20) : (targets[m.id] || 10);
+    const measure = isStretch ? st.sessions : isCore ? st.minutes : st.sets;
     const pct = Math.min(100, Math.round((measure/target)*100));
     let status = 'status-red';
-    if(st.sessions>=2 || measure>=target) status='status-green';
+    if(isStretch){
+      status = st.sessions>=target ? 'status-green' : (st.sessions>=1 ? 'status-amber' : 'status-red');
+    } else if(st.sessions>=2 || measure>=target) status='status-green';
     else if(st.sessions>=1) status='status-amber';
-    const measureLabel = isCore ? `${st.minutes} min` : `${st.sets} sets`;
+    const measureLabel = (isCore||isStretch) ? `${st.minutes} min` : `${st.sets} sets`;
     html += `<div class="muscle-row">
       <div class="muscle-emoji">${m.emoji}</div>
       <div class="muscle-info">
@@ -818,6 +843,7 @@ function renderHistoryTab(){
   const days = sortedWorkoutsDesc().filter(dayHasActivity).filter(w=>{
     if(ui.historyFilter==='all') return true;
     if(ui.historyFilter==='core') return (Number(w.coreMinutes)||0) > 0 || w.entries.some(e=>e.muscleGroup==='core');
+    if(ui.historyFilter==='stretch') return (Number(w.stretchMinutes)||0) > 0;
     if(ui.historyFilter==='running') return !!(w.runs && w.runs.length>0);
     if(ui.historyFilter==='boxing') return (Number(w.boxingMinutes)||0) > 0;
     return w.entries.some(e=>e.muscleGroup===ui.historyFilter);
@@ -832,10 +858,12 @@ function renderHistoryTab(){
     const expanded = !!ui.historyExpanded[w.id];
     const coreMinutes = Number(w.coreMinutes)||0;
     const boxingMinutes = Number(w.boxingMinutes)||0;
+    const stretchMinutes = Number(w.stretchMinutes)||0;
     const hasRunning = !!(w.runs && w.runs.length>0);
     const activityChips = Array.from(new Set(
       w.entries.map(e=>e.muscleGroup)
         .concat(coreMinutes>0 ? ['core'] : [])
+        .concat(stretchMinutes>0 ? ['stretch'] : [])
         .concat(hasRunning ? ['running'] : [])
         .concat(boxingMinutes>0 ? ['boxing'] : [])
     ));
@@ -846,6 +874,7 @@ function renderHistoryTab(){
     if(coreMinutes>0) summaryParts.push(`🧱 ${coreMinutes} min core`);
     if(hasRunning) summaryParts.push(`🏃 ${totalKm.toFixed(1)} km`);
     if(boxingMinutes>0) summaryParts.push(`🥊 ${boxingMinutes} min box`);
+    if(stretchMinutes>0) summaryParts.push(`🧘 ${stretchMinutes} min stretch`);
     html += `<div class="card">
       <div class="history-day-header" data-action="toggle-history" data-wid="${w.id}">
         <div>
@@ -871,6 +900,10 @@ function renderHistoryTab(){
         ${boxingMinutes>0 ? `<div style="margin-bottom:8px;">
           <div style="font-weight:600;font-size:13px;">🥊 Boxing</div>
           <div style="font-size:12px;color:var(--text-dim);">${boxingMinutes} minutes</div>
+        </div>` : ''}
+        ${stretchMinutes>0 ? `<div style="margin-bottom:8px;">
+          <div style="font-weight:600;font-size:13px;">🧘 Stretch</div>
+          <div style="font-size:12px;color:var(--text-dim);">${stretchMinutes} minutes</div>
         </div>` : ''}
         <button class="btn secondary small" data-action="edit-day" data-date="${w.date}">Edit this day</button>
         <button class="btn danger small" data-action="delete-day" data-wid="${w.id}">Delete</button>
@@ -951,10 +984,13 @@ function renderGoalsTab(){
       <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">These set the goalposts for the meters on the Week and Log tabs.</div>
       ${MUSCLE_GROUPS.map(m=>{
         const isCore = m.id==='core';
-        const val = isCore ? (state.settings.weeklyCoreMinuteTarget||20) : (setTargets[m.id]||10);
+        const isStretch = m.id==='stretch';
+        const val = isStretch ? (state.settings.weeklyStretchSessionTarget||3) : isCore ? (state.settings.weeklyCoreMinuteTarget||20) : (setTargets[m.id]||10);
+        const label = isStretch ? '(sessions/week)' : isCore ? '(minutes)' : '(sets)';
+        const action = isStretch ? 'set-stretch-target' : isCore ? 'set-core-target' : 'set-target';
         return `<div class="row" style="margin-bottom:8px;">
-          <span style="font-size:13px;">${m.emoji} ${m.name} ${isCore ? '(minutes)' : '(sets)'}</span>
-          <input type="number" min="0" step="1" style="width:70px;" value="${val}" data-action="${isCore?'set-core-target':'set-target'}" data-muscle="${m.id}">
+          <span style="font-size:13px;">${m.emoji} ${m.name} ${label}</span>
+          <input type="number" min="0" step="1" style="width:70px;" value="${val}" data-action="${action}" data-muscle="${m.id}">
         </div>`;
       }).join('')}
       <div class="row" style="margin-bottom:8px;">
@@ -1297,6 +1333,20 @@ document.addEventListener('click', function(e){
     }
     return;
   }
+  if(action==='stretch-adjust'){
+    const delta = Number(actionEl.dataset.delta);
+    const workout = getOrCreateWorkoutForDate(ui.logDate);
+    const wasEmpty = !dayHasActivity(workout);
+    workout.stretchMinutes = Math.max(0, (Number(workout.stretchMinutes)||0) + delta);
+    saveState();
+    renderShell();
+    if(wasEmpty && dayHasActivity(workout)){
+      const streak = computeCurrentStreak();
+      showToast(streak>1 ? `Logged! 🔥 ${streak}-day streak` : 'Nice, first bit of work logged today 💪');
+      checkForNewBadges();
+    }
+    return;
+  }
   if(action==='protein-adjust'){
     const delta = Number(actionEl.dataset.delta);
     const workout = getOrCreateWorkoutForDate(ui.logDate);
@@ -1390,7 +1440,7 @@ document.addEventListener('click', function(e){
   if(e.target.id==='import-btn'){ document.getElementById('import-file-input').click(); return; }
   if(e.target.id==='reset-btn'){
     if(confirm('This will permanently delete all workouts, goals, and settings. Continue?')){
-      state = { customExercises:[], workouts:[], goals:[], settings:{ weeklySetTarget: Object.fromEntries(MUSCLE_GROUPS.filter(m=>m.id!=='core').map(m=>[m.id,10])), weeklyCoreMinuteTarget: 20, weeklyRunDistanceTarget: 40, weeklyBoxingMinuteTarget: 60, dailyProteinTarget: 150 }, earnedBadgeIds:[], lastExportAt: null };
+      state = { customExercises:[], workouts:[], goals:[], settings:{ weeklySetTarget: Object.fromEntries(MUSCLE_GROUPS.filter(m=>m.id!=='core' && m.id!=='stretch').map(m=>[m.id,10])), weeklyCoreMinuteTarget: 20, weeklyRunDistanceTarget: 40, weeklyBoxingMinuteTarget: 60, dailyProteinTarget: 150, weeklyStretchSessionTarget: 3 }, earnedBadgeIds:[], lastExportAt: null };
       saveStateNow(); renderShell();
     }
     return;
@@ -1449,6 +1499,24 @@ document.addEventListener('input', function(e){
     }
     return;
   }
+  if(e.target.id==='stretch-minutes-input'){
+    const workout = getOrCreateWorkoutForDate(ui.logDate);
+    const wasEmpty = !dayHasActivity(workout);
+    workout.stretchMinutes = Math.max(0, Number(e.target.value)||0);
+    saveState();
+    const pill = document.getElementById('streak-pill');
+    if(pill) pill.textContent = `🔥 ${computeCurrentStreak()}`;
+    if(wasEmpty && dayHasActivity(workout)){
+      showToast('Nice, first bit of work logged today 💪');
+      checkForNewBadges();
+    }
+    return;
+  }
+  if(e.target.dataset.action==='set-stretch-target'){
+    state.settings.weeklyStretchSessionTarget = Number(e.target.value)||0;
+    saveState();
+    return;
+  }
   if(e.target.dataset.action==='run-distance' || e.target.dataset.action==='run-minutes'){
     const ri = Number(e.target.dataset.ri);
     const workout = getWorkoutForDate(ui.logDate);
@@ -1501,7 +1569,7 @@ document.addEventListener('change', function(e){
       try{
         const imported = JSON.parse(evt.target.result);
         if(!imported || !Array.isArray(imported.workouts)) throw new Error('bad format');
-        state = Object.assign({ customExercises:[], workouts:[], goals:[], settings:{weeklySetTarget:Object.fromEntries(MUSCLE_GROUPS.filter(m=>m.id!=='core').map(m=>[m.id,10])), weeklyCoreMinuteTarget:20, weeklyRunDistanceTarget:40, weeklyBoxingMinuteTarget:60, dailyProteinTarget:150}, earnedBadgeIds:[], lastExportAt: null }, imported);
+        state = Object.assign({ customExercises:[], workouts:[], goals:[], settings:{weeklySetTarget:Object.fromEntries(MUSCLE_GROUPS.filter(m=>m.id!=='core' && m.id!=='stretch').map(m=>[m.id,10])), weeklyCoreMinuteTarget:20, weeklyRunDistanceTarget:40, weeklyBoxingMinuteTarget:60, dailyProteinTarget:150, weeklyStretchSessionTarget:3}, earnedBadgeIds:[], lastExportAt: null }, imported);
         saveStateNow();
         showToast('Data imported ✔');
         renderShell();
