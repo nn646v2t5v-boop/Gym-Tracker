@@ -148,6 +148,9 @@ const PRESET_EXERCISES = [
   {id:'chest_press_machine', name:'Chest Press Machine', muscle:'chest', desc:'Seated machine press. Chest, shoulders, triceps — guided and stable.'},
   {id:'cable_chest_fly', name:'Cable Chest Fly', muscle:'chest', desc:'Standing, pull two cables from out to in front of your chest. Constant-tension chest isolation.'},
   {id:'butterfly_machine', name:'Butterfly Machine', muscle:'chest', desc:'Seated pec deck machine, bring the padded arms together in front of your chest like wings closing. Isolates the chest.'},
+  {id:'dumbbell_bench_press', name:'Dumbbell Bench Press', muscle:'chest', desc:'Press two dumbbells up from chest level lying on a flat bench. Chest, front shoulders, triceps — more range of motion than a barbell.'},
+  {id:'incline_dumbbell_bench_press', name:'Incline Dumbbell Bench Press', muscle:'chest', desc:'Dumbbell bench press on an inclined bench. Targets the upper chest more.'},
+  {id:'landmine_punch', name:'Landmine Punch', muscle:'chest', desc:'Standing, drive one end of a landmine-anchored barbell forward like a punch, alternating arms and rotating through your torso. Chest, shoulders, core.'},
   {id:'deadlift', name:'Deadlift', muscle:'back', desc:'Lift a loaded barbell off the floor to hip level. Back, glutes, hamstrings — full body.'},
   {id:'pull_ups', name:'Pull-Ups', muscle:'back', desc:'Pull your bodyweight up to a bar, palms facing away. Lats, back, biceps.'},
   {id:'chin_up', name:'Chin Up', muscle:'back', desc:'Pull your bodyweight up to a bar, palms facing you (underhand grip). Lats, back, biceps.'},
@@ -160,6 +163,7 @@ const PRESET_EXERCISES = [
   {id:'cable_reverse_fly', name:'Cable Reverse Fly', muscle:'back', desc:'Standing at a cable crossover, pull the handles out and back with arms crossed. Rear delts, rhomboids, upper back, constant tension.'},
   {id:'shrugs', name:'Shrugs', muscle:'back', desc:'Shrug a barbell or dumbbells straight up toward your ears and lower with control. Traps.'},
   {id:'farmers_walk', name:'Farmers Walk', muscle:'back', desc:'Carry a heavy weight in each hand and walk for distance or time — a typical set is about 5 minutes, so feel free to log minutes in the reps field. Traps, grip, core, full-body.'},
+  {id:'dumbbell_pull_back', name:'Pull Back (Dumbbell)', muscle:'back', desc:'Lying across a bench, lower a single dumbbell back behind your head with straight-ish arms, then pull it back up over your chest. Lats, chest, serratus, triceps.'},
   {id:'back_squat', name:'Back Squat', muscle:'legs', desc:'Barbell across your upper back, squat down and stand back up. Quads, glutes, hamstrings.'},
   {id:'leg_press', name:'Leg Press', muscle:'legs', desc:'Seated machine, press a weighted platform with your legs. Quads, glutes, hamstrings.'},
   {id:'inclined_leg_press', name:'Inclined Leg Press', muscle:'legs', desc:'Leg press on an inclined sled. Quads, glutes, hamstrings, slightly different angle than the standard leg press.'},
@@ -175,6 +179,8 @@ const PRESET_EXERCISES = [
   {id:'arnold_press', name:'Arnold Press', muscle:'shoulders', desc:'Dumbbell overhead press with a rotation as you press up. Full shoulder.'},
   {id:'cable_lateral_raise', name:'Cable Lateral Raise', muscle:'shoulders', desc:'Cable at your side, raise your arm out to shoulder height. Side delts, constant tension.'},
   {id:'cable_front_raise', name:'Cable Front Raise', muscle:'shoulders', desc:'Cable raise straight out in front to shoulder height. Front delts.'},
+  {id:'front_raise', name:'Front Raise', muscle:'shoulders', desc:'Raise a dumbbell or barbell straight out in front of you to shoulder height. Front delts.'},
+  {id:'landmine_punch_shoulders', name:'Landmine Punch', muscle:'shoulders', desc:'Standing, drive one end of a landmine-anchored barbell forward like a punch, alternating arms and rotating through your torso. Chest, shoulders, core.'},
   {id:'upright_row', name:'Upright Row', muscle:'shoulders', desc:'Stand and pull a barbell or dumbbells straight up along your body to chest height, elbows leading. Side delts, traps.'},
   {id:'cable_face_pull', name:'Cable Face Pull', muscle:'back', desc:'Rope attachment, pull toward your face with elbows high. Upper back, rhomboids, rear delts.'},
   {id:'barbell_curl', name:'Barbell Curl', muscle:'biceps', desc:'Standing curl of a barbell up to your shoulders. Biceps.'},
@@ -731,6 +737,7 @@ function renderExercisePicker(){
     list.forEach(e=>{
       html += `<div class="picker-item" data-action="pick-exercise" data-ex-id="${e.id}">
         <div class="picker-item-main"><span>${e.name}</span>${e.desc ? `<span class="picker-item-desc">${e.desc}</span>` : ''}</div>
+        ${e.isCustom ? `<button class="set-remove" data-action="delete-custom-exercise" data-ex-id="${e.id}" title="Delete custom exercise">✕</button>` : ''}
         <span>›</span>
       </div>`;
     });
@@ -1301,10 +1308,20 @@ document.addEventListener('click', function(e){
     const name = document.getElementById('custom-ex-name').value.trim();
     const muscle = document.getElementById('custom-ex-muscle').value;
     if(!name){ showToast('Give your exercise a name first'); return; }
-    const ex = { id: 'custom_'+Date.now(), name, muscle, isCustom:true };
+    const ex = { id: 'custom_'+Date.now(), name, muscle, isCustom:true, desc: `Custom exercise — ${MUSCLE_MAP[muscle].name}.` };
     state.customExercises.push(ex);
     saveState();
     addExerciseEntryToLog(ex);
+    return;
+  }
+  if(action==='delete-custom-exercise'){
+    const exId = actionEl.dataset.exId;
+    const ex = state.customExercises.find(c=>c.id===exId);
+    if(!confirm(`Delete "${ex ? ex.name : 'this exercise'}"? You won't be able to pick it again, but workouts you've already logged with it are unaffected.`)) return;
+    state.customExercises = state.customExercises.filter(c=>c.id!==exId);
+    saveState();
+    showToast('Custom exercise deleted');
+    renderShell();
     return;
   }
   if(action==='pick-exercise'){
