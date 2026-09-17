@@ -21,6 +21,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Ar
 #app{max-width:520px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding-bottom:78px;}
 header.topbar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px;background:var(--bg);}
 header.topbar h1{font-size:19px;margin:0;display:flex;align-items:center;gap:8px;}
+.header-left{display:flex;align-items:center;gap:6px;position:relative;}
+.hamburger-btn{background:none;border:none;color:var(--text);font-size:22px;line-height:1;cursor:pointer;padding:4px 6px;margin:0;}
+.hamburger-btn:active{opacity:.6;}
+.hamburger-menu{position:absolute;top:38px;left:0;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.45);z-index:20;min-width:170px;overflow:hidden;}
+.hamburger-menu.hidden{display:none;}
+.hamburger-menu button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;background:none;border:none;color:var(--text);padding:12px 14px;font-size:14px;cursor:pointer;}
+.hamburger-menu button:active{background:var(--card-hi);}
+.hamburger-menu button+button{border-top:1px solid var(--border);}
 .streak-pill{background:var(--card-hi);border:1px solid var(--border);border-radius:20px;padding:6px 12px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:4px;}
 .tagline{padding:0 16px 10px;color:var(--text-dim);font-size:13px;}
 main{padding:0 16px 16px;flex:1;}
@@ -104,7 +112,16 @@ footer.small-actions{display:flex;gap:8px;margin-top:14px;}
 <body>
 <div id="app">
   <header class="topbar">
-    <h1>🏋️ Gym Tracker</h1>
+    <div class="header-left">
+      <button class="hamburger-btn" id="hamburger-btn" aria-label="Quick jump">☰</button>
+      <h1>🏋️ Gym Tracker</h1>
+      <div class="hamburger-menu hidden" id="hamburger-menu">
+        <button data-action="jump-to-section" data-section-id="section-core">🧱 Core</button>
+        <button data-action="jump-to-section" data-section-id="section-running">🏃 Running</button>
+        <button data-action="jump-to-section" data-section-id="section-boxing">🥊 Boxing</button>
+        <button data-action="jump-to-section" data-section-id="section-stretch">🧘 Stretch</button>
+      </div>
+    </div>
     <div class="streak-pill" id="streak-pill">🔥 0</div>
   </header>
   <div class="tagline" id="tagline"></div>
@@ -156,6 +173,7 @@ const PRESET_EXERCISES = [
   {id:'chin_up', name:'Chin Up', muscle:'back', desc:'Pull your bodyweight up to a bar, palms facing you (underhand grip). Lats, back, biceps.'},
   {id:'barbell_row', name:'Barbell Row', muscle:'back', desc:'Bent over, pull a barbell up to your torso. Mid-back and lats.'},
   {id:'single_arm_row', name:'Single Arm Row', muscle:'back', desc:'One-arm dumbbell row, bracing your other arm on a bench. Lats, mid-back, one side at a time.'},
+  {id:'dumbbell_rows', name:'Dumbbell Rows', muscle:'back', desc:'Bent over, pull two dumbbells up to your torso at the same time. Mid-back and lats.'},
   {id:'lat_pulldown', name:'Lat Pulldown', muscle:'back', desc:'Seated, pull a cable bar down to your chest. Lats and back.'},
   {id:'seated_cable_row', name:'Seated Cable Row', muscle:'back', desc:'Seated, pull a cable handle toward your torso. Mid-back and lats.'},
   {id:'glute_ham_raise', name:'Glute Ham Raise (GHR)', muscle:'back', desc:'Anchor your ankles and hinge/curl your torso up from a kneeling or GHR-bench position. Hamstrings, glutes, lower back.'},
@@ -163,7 +181,6 @@ const PRESET_EXERCISES = [
   {id:'cable_reverse_fly', name:'Cable Reverse Fly', muscle:'back', desc:'Standing at a cable crossover, pull the handles out and back with arms crossed. Rear delts, rhomboids, upper back, constant tension.'},
   {id:'shrugs', name:'Shrugs', muscle:'back', desc:'Shrug a barbell or dumbbells straight up toward your ears and lower with control. Traps.'},
   {id:'farmers_walk', name:'Farmers Walk', muscle:'back', desc:'Carry a heavy weight in each hand and walk for distance or time — a typical set is about 5 minutes, so feel free to log minutes in the reps field. Traps, grip, core, full-body.'},
-  {id:'dumbbell_pull_back', name:'Pull Back (Dumbbell)', muscle:'back', desc:'Lying across a bench, lower a single dumbbell back behind your head with straight-ish arms, then pull it back up over your chest. Lats, chest, serratus, triceps.'},
   {id:'back_squat', name:'Back Squat', muscle:'legs', desc:'Barbell across your upper back, squat down and stand back up. Quads, glutes, hamstrings.'},
   {id:'leg_press', name:'Leg Press', muscle:'legs', desc:'Seated machine, press a weighted platform with your legs. Quads, glutes, hamstrings.'},
   {id:'inclined_leg_press', name:'Inclined Leg Press', muscle:'legs', desc:'Leg press on an inclined sled. Quads, glutes, hamstrings, slightly different angle than the standard leg press.'},
@@ -222,6 +239,27 @@ const BADGE_DEFS = [
 ];
 
 /* ============================= STATE ============================= */
+// Renames of retired preset exercises: old id -> new id/name to apply to already-logged history.
+// Must be declared before loadState() is invoked below (loadState calls migrateLegacyExercises,
+// which reads this const — a const isn't usable until its own declaration line has run).
+const LEGACY_EXERCISE_RENAMES = {
+  'dumbbell_pull_back': { id:'dumbbell_rows', name:'Dumbbell Rows' },
+};
+function migrateLegacyExercises(st){
+  let changed = false;
+  Object.keys(LEGACY_EXERCISE_RENAMES).forEach(oldId=>{
+    const to = LEGACY_EXERCISE_RENAMES[oldId];
+    (st.workouts||[]).forEach(w=>{
+      (w.entries||[]).forEach(entry=>{
+        if(entry.exerciseId === oldId){ entry.exerciseId = to.id; entry.exerciseName = to.name; changed = true; }
+      });
+    });
+    (st.goals||[]).forEach(g=>{
+      if(g.type==='exercise' && g.exerciseId === oldId){ g.exerciseId = to.id; changed = true; }
+    });
+  });
+  return changed;
+}
 let state = loadState();
 let ui = {
   currentTab: 'log',
@@ -246,7 +284,7 @@ function loadState(){
     settings: {
       weeklySetTarget: Object.fromEntries(MUSCLE_GROUPS.filter(m=>m.id!=='core' && m.id!=='stretch').map(m=>[m.id,10])),
       weeklyCoreMinuteTarget: 20,
-      weeklyRunDistanceTarget: 40,
+      weeklyRunSessionTarget: 4,
       weeklyBoxingMinuteTarget: 60,
       dailyProteinTarget: 150,
       weeklyStretchSessionTarget: 3,
@@ -257,11 +295,15 @@ function loadState(){
   if(!raw) return defaults;
   try{
     const parsed = JSON.parse(raw);
-    return Object.assign(defaults, parsed, {
+    const merged = Object.assign(defaults, parsed, {
       settings: Object.assign(defaults.settings, parsed.settings||{}, {
         weeklySetTarget: Object.assign(defaults.settings.weeklySetTarget, (parsed.settings&&parsed.settings.weeklySetTarget)||{})
       })
     });
+    if(migrateLegacyExercises(merged)){
+      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(merged)); }catch(e){}
+    }
+    return merged;
   }catch(e){ return defaults; }
 }
 
@@ -573,6 +615,7 @@ function renderShell(){
 function renderMain(){
   const main = document.getElementById('main-content');
   if(ui.currentTab==='log') main.innerHTML = renderLogTab();
+  else if(ui.currentTab==='cardio') main.innerHTML = renderCardioTab();
   else if(ui.currentTab==='week') main.innerHTML = renderWeekTab();
   else if(ui.currentTab==='history') main.innerHTML = renderHistoryTab();
   else if(ui.currentTab==='goals') main.innerHTML = renderGoalsTab();
@@ -633,52 +676,6 @@ function renderLogTab(){
     html += renderExercisePicker();
   }
 
-  const coreMinutes = workout ? (Number(workout.coreMinutes)||0) : 0;
-  html += `<h2 class="section-title">Core</h2>
-  <div class="card">
-    <div class="row">
-      <div><div class="name">🧱 Core Work</div></div>
-    </div>
-    <div class="row" style="margin-top:10px;gap:8px;">
-      <button class="btn secondary small" data-action="core-adjust" data-delta="-5">-5</button>
-      <input type="number" id="core-minutes-input" min="0" step="1" value="${coreMinutes}" style="text-align:center;">
-      <button class="btn secondary small" data-action="core-adjust" data-delta="5">+5</button>
-    </div>
-    <div style="font-size:12px;color:var(--text-dim);margin-top:6px;text-align:center;">minutes spent on core today</div>
-  </div>`;
-
-  const runs = workout ? (workout.runs||[]) : [];
-  const boxingMinutes = workout ? (Number(workout.boxingMinutes)||0) : 0;
-  html += `<h2 class="section-title">Cardio</h2>
-  <div class="card">
-    <div class="row">
-      <div><div class="name">🏃 Running</div><div class="muscle-tag">Distance & Time</div></div>
-    </div>
-    ${runs.length ? `<table class="set-table">
-      <thead><tr><th>Km</th><th>Min</th><th style="width:22%;">Pace</th><th style="width:10%;"></th></tr></thead>
-      <tbody>
-        ${runs.map((r,ri)=>`<tr>
-          <td><input type="number" inputmode="decimal" step="0.1" value="${r.distance}" data-action="run-distance" data-ri="${ri}"></td>
-          <td><input type="number" inputmode="numeric" step="1" value="${r.minutes}" data-action="run-minutes" data-ri="${ri}"></td>
-          <td style="font-size:12px;color:var(--text-dim);white-space:nowrap;">${formatPace(r.distance, r.minutes)}</td>
-          <td><button class="set-remove" data-action="remove-run" data-ri="${ri}">✕</button></td>
-        </tr>`).join('')}
-      </tbody>
-    </table>` : `<div style="font-size:12px;color:var(--text-dim);margin-top:8px;">No runs logged today.</div>`}
-    <button class="btn secondary small add-set-btn" data-action="add-run">+ Add Run</button>
-  </div>
-  <div class="card">
-    <div class="row">
-      <div><div class="name">🥊 Boxing</div><div class="muscle-tag">Bag & Shadow Work</div></div>
-    </div>
-    <div class="row" style="margin-top:10px;gap:8px;">
-      <button class="btn secondary small" data-action="boxing-adjust" data-delta="-5">-5</button>
-      <input type="number" id="boxing-minutes-input" min="0" step="1" value="${boxingMinutes}" style="text-align:center;">
-      <button class="btn secondary small" data-action="boxing-adjust" data-delta="5">+5</button>
-    </div>
-    <div style="font-size:12px;color:var(--text-dim);margin-top:6px;text-align:center;">minutes spent boxing today</div>
-  </div>`;
-
   const proteinTarget = state.settings.dailyProteinTarget || 150;
   const proteinGrams = workout ? (Number(workout.proteinGrams)||0) : 0;
   const proteinPct = Math.min(100, Math.round((proteinGrams/proteinTarget)*100));
@@ -697,8 +694,71 @@ function renderLogTab(){
     <div style="font-size:12px;color:var(--text-dim);margin-top:6px;text-align:center;">${proteinGrams}g of ${proteinTarget}g today${proteinGrams>=proteinTarget ? ' — target hit 💪' : ''}</div>
   </div>`;
 
+  return html;
+}
+
+/* ============================= RENDER: CARDIO TAB (hamburger-only) ============================= */
+function renderCardioTab(){
+  const workout = getWorkoutForDate(ui.logDate);
+  let html = '';
+  html += `<h2 class="section-title" style="margin-top:0;">Core, Cardio & Stretch</h2>`;
+  html += `<div class="card tight row">
+    <button class="btn secondary small" id="log-prev-day">◀</button>
+    <div style="text-align:center;flex:1;">
+      <div style="font-weight:700;">${formatHuman(ui.logDate)}</div>
+      ${ui.logDate===todayISO() ? '<div style="font-size:11px;color:var(--text-dim);">Today</div>' : `<a href="#" id="log-goto-today" class="link-btn" style="font-size:11px;">Jump to today</a>`}
+    </div>
+    <button class="btn secondary small" id="log-next-day" ${ui.logDate>=todayISO() ? 'disabled style="opacity:.3"' : ''}>▶</button>
+  </div>`;
+
+  const coreMinutes = workout ? (Number(workout.coreMinutes)||0) : 0;
+  html += `<h2 class="section-title" id="section-core">Core</h2>
+  <div class="card">
+    <div class="row">
+      <div><div class="name">🧱 Core Work</div></div>
+    </div>
+    <div class="row" style="margin-top:10px;gap:8px;">
+      <button class="btn secondary small" data-action="core-adjust" data-delta="-5">-5</button>
+      <input type="number" id="core-minutes-input" min="0" step="1" value="${coreMinutes}" style="text-align:center;">
+      <button class="btn secondary small" data-action="core-adjust" data-delta="5">+5</button>
+    </div>
+    <div style="font-size:12px;color:var(--text-dim);margin-top:6px;text-align:center;">minutes spent on core today</div>
+  </div>`;
+
+  const runs = workout ? (workout.runs||[]) : [];
+  const boxingMinutes = workout ? (Number(workout.boxingMinutes)||0) : 0;
+  html += `<h2 class="section-title" id="section-running">Cardio</h2>
+  <div class="card">
+    <div class="row">
+      <div><div class="name">🏃 Running</div><div class="muscle-tag">Distance & Time</div></div>
+    </div>
+    ${runs.length ? `<table class="set-table">
+      <thead><tr><th>Km</th><th>Min</th><th style="width:22%;">Pace</th><th style="width:10%;"></th></tr></thead>
+      <tbody>
+        ${runs.map((r,ri)=>`<tr>
+          <td><input type="number" inputmode="decimal" step="0.1" value="${r.distance}" data-action="run-distance" data-ri="${ri}"></td>
+          <td><input type="number" inputmode="numeric" step="1" value="${r.minutes}" data-action="run-minutes" data-ri="${ri}"></td>
+          <td style="font-size:12px;color:var(--text-dim);white-space:nowrap;">${formatPace(r.distance, r.minutes)}</td>
+          <td><button class="set-remove" data-action="remove-run" data-ri="${ri}">✕</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>` : `<div style="font-size:12px;color:var(--text-dim);margin-top:8px;">No runs logged today.</div>`}
+    <button class="btn secondary small add-set-btn" data-action="add-run">+ Add Run</button>
+  </div>
+  <div class="card" id="section-boxing">
+    <div class="row">
+      <div><div class="name">🥊 Boxing</div><div class="muscle-tag">Bag & Shadow Work</div></div>
+    </div>
+    <div class="row" style="margin-top:10px;gap:8px;">
+      <button class="btn secondary small" data-action="boxing-adjust" data-delta="-5">-5</button>
+      <input type="number" id="boxing-minutes-input" min="0" step="1" value="${boxingMinutes}" style="text-align:center;">
+      <button class="btn secondary small" data-action="boxing-adjust" data-delta="5">+5</button>
+    </div>
+    <div style="font-size:12px;color:var(--text-dim);margin-top:6px;text-align:center;">minutes spent boxing today</div>
+  </div>`;
+
   const stretchMinutes = workout ? (Number(workout.stretchMinutes)||0) : 0;
-  html += `<h2 class="section-title">Stretch</h2>
+  html += `<h2 class="section-title" id="section-stretch">Stretch</h2>
   <div class="card">
     <div class="row">
       <div><div class="name">🧘 Stretch</div></div>
@@ -803,12 +863,12 @@ function renderWeekTab(){
   html += `</div>`;
 
   const cardioStats = computeCardioStats(monday, sunday);
-  const runTarget = state.settings.weeklyRunDistanceTarget || 40;
+  const runTarget = state.settings.weeklyRunSessionTarget || 4;
   const boxTarget = state.settings.weeklyBoxingMinuteTarget || 60;
-  const runPct = Math.min(100, Math.round((cardioStats.running.distance/runTarget)*100));
+  const runPct = Math.min(100, Math.round((cardioStats.running.sessions/runTarget)*100));
   const boxPct = Math.min(100, Math.round((cardioStats.boxing.minutes/boxTarget)*100));
   let runStatus = 'status-red';
-  if(cardioStats.running.distance>=runTarget) runStatus='status-green';
+  if(cardioStats.running.sessions>=runTarget) runStatus='status-green';
   else if(cardioStats.running.sessions>=1) runStatus='status-amber';
   let boxStatus = 'status-red';
   if(cardioStats.boxing.minutes>=boxTarget) boxStatus='status-green';
@@ -818,7 +878,7 @@ function renderWeekTab(){
     <div class="muscle-row">
       <div class="muscle-emoji">🏃</div>
       <div class="muscle-info">
-        <div class="muscle-name-line"><span>Running</span><span style="color:var(--text-dim);">${cardioStats.running.sessions} run${cardioStats.running.sessions===1?'':'s'} · ${cardioStats.running.distance.toFixed(1)} km</span></div>
+        <div class="muscle-name-line"><span>Running</span><span style="color:var(--text-dim);">${cardioStats.running.sessions}/${runTarget} runs · ${cardioStats.running.distance.toFixed(1)} km</span></div>
         <div class="bar-track"><div class="bar-fill ${runStatus}" style="width:${runPct}%;"></div></div>
       </div>
     </div>
@@ -1007,7 +1067,7 @@ function renderGoalsTab(){
   }
 
   const setTargets = state.settings.weeklySetTarget;
-  const runTarget = state.settings.weeklyRunDistanceTarget || 40;
+  const runTarget = state.settings.weeklyRunSessionTarget || 4;
   const boxTarget = state.settings.weeklyBoxingMinuteTarget || 60;
   const proteinTargetVal = state.settings.dailyProteinTarget || 150;
   html += `<div style="margin-top:18px;text-align:center;">
@@ -1028,8 +1088,8 @@ function renderGoalsTab(){
         </div>`;
       }).join('')}
       <div class="row" style="margin-bottom:8px;">
-        <span style="font-size:13px;">🏃 Running target (km)</span>
-        <input type="number" min="0" step="1" style="width:70px;" value="${runTarget}" data-action="set-run-target">
+        <span style="font-size:13px;">🏃 Running target (runs/week)</span>
+        <input type="number" min="0" step="1" style="width:70px;" value="${runTarget}" data-action="set-run-session-target">
       </div>
       <div class="row" style="margin-bottom:8px;">
         <span style="font-size:13px;">🥊 Boxing target (min)</span>
@@ -1291,11 +1351,26 @@ function addExerciseEntryToLog(exercise){
 }
 
 document.addEventListener('click', function(e){
+  const hamburgerMenu = document.getElementById('hamburger-menu');
+  if(hamburgerMenu && !hamburgerMenu.classList.contains('hidden') && e.target.id!=='hamburger-btn' && !hamburgerMenu.contains(e.target)){
+    hamburgerMenu.classList.add('hidden');
+  }
+  if(e.target.id==='hamburger-btn'){ hamburgerMenu.classList.toggle('hidden'); return; }
+
   const navBtn = e.target.closest('#bottom-nav button');
   if(navBtn){ ui.currentTab = navBtn.dataset.tab; renderShell(); return; }
 
   const actionEl = e.target.closest('[data-action]');
   const action = actionEl ? actionEl.dataset.action : null;
+
+  if(action==='jump-to-section'){
+    const sectionId = actionEl.dataset.sectionId;
+    hamburgerMenu.classList.add('hidden');
+    const scrollToSection = ()=>{ const el=document.getElementById(sectionId); if(el) el.scrollIntoView({behavior:'smooth', block:'start'}); };
+    if(ui.currentTab!=='cardio'){ ui.currentTab='cardio'; renderShell(); setTimeout(scrollToSection, 50); }
+    else { scrollToSection(); }
+    return;
+  }
 
   if(e.target.id==='log-prev-day'){ ui.logDate = addDaysISO(ui.logDate,-1); renderShell(); return; }
   if(e.target.id==='log-next-day'){ if(ui.logDate<todayISO()) ui.logDate = addDaysISO(ui.logDate,1); renderShell(); return; }
@@ -1485,7 +1560,7 @@ document.addEventListener('click', function(e){
   if(e.target.id==='import-btn'){ document.getElementById('import-file-input').click(); return; }
   if(e.target.id==='reset-btn'){
     if(confirm('This will permanently delete all workouts, goals, and settings. Continue?')){
-      state = { customExercises:[], workouts:[], goals:[], settings:{ weeklySetTarget: Object.fromEntries(MUSCLE_GROUPS.filter(m=>m.id!=='core' && m.id!=='stretch').map(m=>[m.id,10])), weeklyCoreMinuteTarget: 20, weeklyRunDistanceTarget: 40, weeklyBoxingMinuteTarget: 60, dailyProteinTarget: 150, weeklyStretchSessionTarget: 3 }, earnedBadgeIds:[], lastExportAt: null };
+      state = { customExercises:[], workouts:[], goals:[], settings:{ weeklySetTarget: Object.fromEntries(MUSCLE_GROUPS.filter(m=>m.id!=='core' && m.id!=='stretch').map(m=>[m.id,10])), weeklyCoreMinuteTarget: 20, weeklyRunSessionTarget: 4, weeklyBoxingMinuteTarget: 60, dailyProteinTarget: 150, weeklyStretchSessionTarget: 3 }, earnedBadgeIds:[], lastExportAt: null };
       saveStateNow(); renderShell();
     }
     return;
@@ -1571,8 +1646,8 @@ document.addEventListener('input', function(e){
     saveState();
     return;
   }
-  if(e.target.dataset.action==='set-run-target'){
-    state.settings.weeklyRunDistanceTarget = Number(e.target.value)||0;
+  if(e.target.dataset.action==='set-run-session-target'){
+    state.settings.weeklyRunSessionTarget = Number(e.target.value)||0;
     saveState();
     return;
   }
@@ -1614,7 +1689,8 @@ document.addEventListener('change', function(e){
       try{
         const imported = JSON.parse(evt.target.result);
         if(!imported || !Array.isArray(imported.workouts)) throw new Error('bad format');
-        state = Object.assign({ customExercises:[], workouts:[], goals:[], settings:{weeklySetTarget:Object.fromEntries(MUSCLE_GROUPS.filter(m=>m.id!=='core' && m.id!=='stretch').map(m=>[m.id,10])), weeklyCoreMinuteTarget:20, weeklyRunDistanceTarget:40, weeklyBoxingMinuteTarget:60, dailyProteinTarget:150, weeklyStretchSessionTarget:3}, earnedBadgeIds:[], lastExportAt: null }, imported);
+        state = Object.assign({ customExercises:[], workouts:[], goals:[], settings:{weeklySetTarget:Object.fromEntries(MUSCLE_GROUPS.filter(m=>m.id!=='core' && m.id!=='stretch').map(m=>[m.id,10])), weeklyCoreMinuteTarget:20, weeklyRunSessionTarget:4, weeklyBoxingMinuteTarget:60, dailyProteinTarget:150, weeklyStretchSessionTarget:3}, earnedBadgeIds:[], lastExportAt: null }, imported);
+        migrateLegacyExercises(state);
         saveStateNow();
         showToast('Data imported ✔');
         renderShell();
