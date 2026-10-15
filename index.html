@@ -206,11 +206,13 @@ const PRESET_EXERCISES = [
   {id:'hammer_curl', name:'Hammer Curl', muscle:'biceps', desc:'Dumbbell curl with palms facing each other (like holding hammers). Biceps and forearms.'},
   {id:'cable_curl', name:'Cable Curl', muscle:'biceps', desc:'Curl a cable bar or rope up toward your shoulders. Biceps, constant tension.'},
   {id:'single_arm_cable_curl', name:'Single-Arm Cable Curl', muscle:'biceps', desc:'One-arm cable curl, one side at a time. Biceps, easier to focus form per side.'},
+  {id:'incline_dumbbell_curl', name:'Inclined Dumbbell Curl', muscle:'biceps', desc:'Seated back on an inclined bench with arms hanging straight down, curl dumbbells up. Deep stretch on the biceps, especially the long head.'},
+  {id:'preacher_curl', name:'Preacher Curl', muscle:'biceps', desc:'Arms resting on an angled preacher pad, curl a barbell, EZ-bar or dumbbells up. Strict biceps isolation, no swinging.'},
   {id:'triceps_pushdown', name:'Triceps Pushdown', muscle:'triceps', desc:'Cable pushdown of a bar or rope from chest height down to your thighs. Triceps.'},
   {id:'skull_crushers', name:'Skull Crushers', muscle:'triceps', desc:'Lying down, lower a barbell or dumbbells toward your forehead, then extend. Triceps.'},
   {id:'dips', name:'Dips', muscle:'triceps', desc:'Lower and press your bodyweight up between parallel bars. Triceps, chest, shoulders.'},
   {id:'cable_overhead_triceps_extension', name:'Cable Overhead Triceps Extension', muscle:'triceps', desc:'Cable behind your head, extend your arms overhead. Triceps, especially the long head.'},
-  {id:'cable_kickback', name:'Cable Kickback', muscle:'triceps', desc:'Bent over, extend a cable handle straight back behind you. Triceps isolation.'},
+  {id:'triceps_kickback', name:'Triceps Kickback', muscle:'triceps', desc:'Bent over, upper arm pinned to your side, extend the weight straight back behind you. Triceps isolation.'},
 ];
 
 const TAGLINES = [
@@ -245,6 +247,7 @@ const BADGE_DEFS = [
 // which reads this const — a const isn't usable until its own declaration line has run).
 const LEGACY_EXERCISE_RENAMES = {
   'dumbbell_pull_back': { id:'dumbbell_rows', name:'Dumbbell Rows' },
+  'cable_kickback': { id:'triceps_kickback', name:'Triceps Kickback' },
 };
 function migrateLegacyExercises(st){
   let changed = false;
