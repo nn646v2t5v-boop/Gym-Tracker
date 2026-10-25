@@ -71,6 +71,30 @@ label.field-label{font-size:12px;color:var(--text-dim);display:block;margin-bott
 .picker-item-desc{font-size:11px;color:var(--text-dim);margin-top:2px;line-height:1.3;}
 .picker-item-main{display:flex;flex-direction:column;gap:0;}
 .add-set-btn{margin-top:8px;}
+/* Exercise progress list */
+.prog-filter{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:10px;scrollbar-width:none;}
+.prog-filter::-webkit-scrollbar{display:none;}
+.prog-filter .chip{flex:0 0 auto;cursor:pointer;}
+.prog-row{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 14px;margin-bottom:10px;cursor:pointer;}
+.prog-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.prog-name{font-weight:700;font-size:14px;}
+.prog-sub{font-size:11px;color:var(--text-dim);margin-top:2px;}
+.prog-max{text-align:right;flex:none;}
+.prog-max .num{font-size:22px;font-weight:800;color:var(--accent);line-height:1;font-variant-numeric:tabular-nums;}
+.prog-max .lbl{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.06em;margin-top:3px;}
+.prog-bottom{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;}
+.prog-change{font-size:12px;color:var(--text-dim);}
+.prog-change .up{color:var(--good);font-weight:700;}
+.prog-change .down{color:var(--bad);font-weight:700;}
+.pr-badge{display:inline-block;font-size:10px;font-weight:700;color:var(--bg);background:var(--good);border-radius:6px;padding:1px 6px;margin-left:6px;vertical-align:middle;}
+.prog-detail{margin-top:12px;border-top:1px solid var(--border);padding-top:12px;}
+.prog-detail svg text{fill:var(--text-dim);font-size:9px;}
+.prog-sessions{width:100%;border-collapse:collapse;margin-top:10px;font-size:12px;}
+.prog-sessions td{padding:4px 2px;border-top:1px solid var(--border);}
+.prog-sessions td:last-child{text-align:right;font-variant-numeric:tabular-nums;}
+.equip-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;}
+.equip-row .chip{cursor:pointer;font-size:13px;padding:6px 12px;}
+.equip-row .chip .tick{display:inline-block;width:14px;text-align:center;font-weight:700;}
 .remove-exercise{background:none;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;}
 .picker-box{margin-top:10px;border-top:1px solid var(--border);padding-top:10px;}
 .picker-list{max-height:320px;overflow-y:auto;margin-top:8px;}
@@ -157,63 +181,78 @@ const CARDIO_ACTIVITIES = [
 ];
 const ACTIVITY_MAP = Object.assign({}, MUSCLE_MAP, Object.fromEntries(CARDIO_ACTIVITIES.map(a=>[a.id,a])));
 
+// muscles: every group the exercise belongs to (first = main one).
+// equip: equipment options shown as ticks when logging. No equip = no ticks.
+// unit: 'min' when the second column is minutes instead of reps.
 const PRESET_EXERCISES = [
-  {id:'bench_press', name:'Bench Press', muscle:'chest', desc:'Barbell press lying flat on a bench. Chest, front shoulders, triceps.'},
-  {id:'incline_bench_press', name:'Incline Bench Press', muscle:'chest', desc:'Bench press on an inclined bench. Targets the upper chest more.'},
-  {id:'push_ups', name:'Push-Ups', muscle:'chest', desc:'Bodyweight press from the floor, hands under shoulders. Chest, shoulders, triceps, core.'},
-  {id:'dumbbell_fly', name:'Butterfly Dumbbells', muscle:'chest', desc:'Lying on a bench, arc dumbbells out and back together like wings. Isolates the chest.'},
-  {id:'chest_press_machine', name:'Chest Press Machine', muscle:'chest', desc:'Seated machine press. Chest, shoulders, triceps — guided and stable.'},
-  {id:'cable_chest_fly', name:'Cable Chest Fly', muscle:'chest', desc:'Standing, pull two cables from out to in front of your chest. Constant-tension chest isolation.'},
-  {id:'butterfly_machine', name:'Butterfly Machine', muscle:'chest', desc:'Seated pec deck machine, bring the padded arms together in front of your chest like wings closing. Isolates the chest.'},
-  {id:'dumbbell_bench_press', name:'Dumbbell Bench Press', muscle:'chest', desc:'Press two dumbbells up from chest level lying on a flat bench. Chest, front shoulders, triceps — more range of motion than a barbell.'},
-  {id:'incline_dumbbell_bench_press', name:'Incline Dumbbell Bench Press', muscle:'chest', desc:'Dumbbell bench press on an inclined bench. Targets the upper chest more.'},
-  {id:'landmine_punch', name:'Landmine Punch', muscle:'chest', desc:'Standing, drive one end of a landmine-anchored barbell forward like a punch, alternating arms and rotating through your torso. Chest, shoulders, core.'},
-  {id:'pullover', name:'Pullover', muscle:'chest', desc:'Lying across a bench, lower a dumbbell back behind your head with straight-ish arms, then pull it back up over your chest. Chest, lats, serratus.'},
-  {id:'deadlift', name:'Deadlift', muscle:'back', desc:'Lift a loaded barbell off the floor to hip level. Back, glutes, hamstrings — full body.'},
-  {id:'pull_ups', name:'Pull-Ups', muscle:'back', desc:'Pull your bodyweight up to a bar, palms facing away. Lats, back, biceps.'},
-  {id:'chin_up', name:'Chin Up', muscle:'back', desc:'Pull your bodyweight up to a bar, palms facing you (underhand grip). Lats, back, biceps.'},
-  {id:'barbell_row', name:'Barbell Row', muscle:'back', desc:'Bent over, pull a barbell up to your torso. Mid-back and lats.'},
-  {id:'single_arm_row', name:'Single Arm Row', muscle:'back', desc:'One-arm dumbbell row, bracing your other arm on a bench. Lats, mid-back, one side at a time.'},
-  {id:'dumbbell_rows', name:'Dumbbell Rows', muscle:'back', desc:'Bent over, pull two dumbbells up to your torso at the same time. Mid-back and lats.'},
-  {id:'lat_pulldown', name:'Lat Pulldown', muscle:'back', desc:'Seated, pull a cable bar down to your chest. Lats and back.'},
-  {id:'seated_cable_row', name:'Seated Cable Row', muscle:'back', desc:'Seated, pull a cable handle toward your torso. Mid-back and lats.'},
-  {id:'glute_ham_raise', name:'Glute Ham Raise (GHR)', muscle:'back', desc:'Anchor your ankles and hinge/curl your torso up from a kneeling or GHR-bench position. Hamstrings, glutes, lower back.'},
-  {id:'reverse_fly', name:'Reverse Fly', muscle:'back', desc:'Bent over, raise dumbbells out to the sides. Rear delts, rhomboids, upper back.'},
-  {id:'cable_reverse_fly', name:'Cable Reverse Fly', muscle:'back', desc:'Standing at a cable crossover, pull the handles out and back with arms crossed. Rear delts, rhomboids, upper back, constant tension.'},
-  {id:'shrugs', name:'Shrugs', muscle:'back', desc:'Shrug a barbell or dumbbells straight up toward your ears and lower with control. Traps.'},
-  {id:'farmers_walk', name:'Farmers Walk', muscle:'back', desc:'Carry a heavy weight in each hand and walk for distance or time — a typical set is about 5 minutes, so feel free to log minutes in the reps field. Traps, grip, core, full-body.'},
-  {id:'back_squat', name:'Back Squat', muscle:'legs', desc:'Barbell across your upper back, squat down and stand back up. Quads, glutes, hamstrings.'},
-  {id:'leg_press', name:'Leg Press', muscle:'legs', desc:'Seated machine, press a weighted platform with your legs. Quads, glutes, hamstrings.'},
-  {id:'inclined_leg_press', name:'Inclined Leg Press', muscle:'legs', desc:'Leg press on an inclined sled. Quads, glutes, hamstrings, slightly different angle than the standard leg press.'},
-  {id:'walking_lunges', name:'Walking Lunges', muscle:'legs', desc:'Step forward into a lunge, alternating legs as you walk. Quads, glutes, balance.'},
-  {id:'single_leg_lunges', name:'Single Leg Lunges', muscle:'legs', desc:'Lunges performed one leg at a time in place (or rear-foot-elevated). Quads, glutes, balance, unilateral strength.'},
-  {id:'leg_curl', name:'Leg Curl', muscle:'legs', desc:'Machine curl of the lower leg, face down or seated. Hamstring isolation.'},
-  {id:'leg_extension', name:'Leg Extension', muscle:'legs', desc:'Seated machine extension of the lower leg. Quad isolation.'},
-  {id:'calf_extension', name:'Calf Extension', muscle:'legs', desc:'Standing or seated machine raise onto your toes. Calves.'},
-  {id:'romanian_deadlift', name:'Romanian Deadlift', muscle:'legs', desc:'Hip-hinge with a barbell, slight knee bend, lower to shins. Hamstrings and glutes.'},
-  {id:'overhead_press', name:'Overhead Press', muscle:'shoulders', desc:'Press a barbell or dumbbells overhead from shoulder height. Front/side delts, triceps.'},
-  {id:'lateral_raise', name:'Lateral Raise', muscle:'shoulders', desc:'Raise dumbbells out to the sides to shoulder height. Side delts.'},
-  {id:'rear_delt_fly', name:'Rear Delt Fly', muscle:'shoulders', desc:'Bent over, raise dumbbells out to the sides. Rear delts and upper back.'},
-  {id:'arnold_press', name:'Arnold Press', muscle:'shoulders', desc:'Dumbbell overhead press with a rotation as you press up. Full shoulder.'},
-  {id:'cable_lateral_raise', name:'Cable Lateral Raise', muscle:'shoulders', desc:'Cable at your side, raise your arm out to shoulder height. Side delts, constant tension.'},
-  {id:'cable_front_raise', name:'Cable Front Raise', muscle:'shoulders', desc:'Cable raise straight out in front to shoulder height. Front delts.'},
-  {id:'front_raise', name:'Front Raise', muscle:'shoulders', desc:'Raise a dumbbell or barbell straight out in front of you to shoulder height. Front delts.'},
-  {id:'landmine_punch_shoulders', name:'Landmine Punch', muscle:'shoulders', desc:'Standing, drive one end of a landmine-anchored barbell forward like a punch, alternating arms and rotating through your torso. Chest, shoulders, core.'},
-  {id:'upright_row', name:'Upright Row', muscle:'shoulders', desc:'Stand and pull a barbell or dumbbells straight up along your body to chest height, elbows leading. Side delts, traps.'},
-  {id:'cable_face_pull', name:'Cable Face Pull', muscle:'back', desc:'Rope attachment, pull toward your face with elbows high. Upper back, rhomboids, rear delts.'},
-  {id:'barbell_curl', name:'Barbell Curl', muscle:'biceps', desc:'Standing curl of a barbell up to your shoulders. Biceps.'},
-  {id:'reverse_barbell_curl', name:'Reverse Barbell Curl', muscle:'biceps', desc:'Standing curl of a barbell with palms facing down (overhand grip). Biceps, brachialis, forearms.'},
-  {id:'hammer_curl', name:'Hammer Curl', muscle:'biceps', desc:'Dumbbell curl with palms facing each other (like holding hammers). Biceps and forearms.'},
-  {id:'cable_curl', name:'Cable Curl', muscle:'biceps', desc:'Curl a cable bar or rope up toward your shoulders. Biceps, constant tension.'},
-  {id:'single_arm_cable_curl', name:'Single-Arm Cable Curl', muscle:'biceps', desc:'One-arm cable curl, one side at a time. Biceps, easier to focus form per side.'},
-  {id:'incline_dumbbell_curl', name:'Inclined Dumbbell Curl', muscle:'biceps', desc:'Seated back on an inclined bench with arms hanging straight down, curl dumbbells up. Deep stretch on the biceps, especially the long head.'},
-  {id:'preacher_curl', name:'Preacher Curl', muscle:'biceps', desc:'Arms resting on an angled preacher pad, curl a barbell, EZ-bar or dumbbells up. Strict biceps isolation, no swinging.'},
-  {id:'triceps_pushdown', name:'Triceps Pushdown', muscle:'triceps', desc:'Cable pushdown of a bar or rope from chest height down to your thighs. Triceps.'},
-  {id:'skull_crushers', name:'Skull Crushers', muscle:'triceps', desc:'Lying down, lower a barbell or dumbbells toward your forehead, then extend. Triceps.'},
-  {id:'dips', name:'Dips', muscle:'triceps', desc:'Lower and press your bodyweight up between parallel bars. Triceps, chest, shoulders.'},
-  {id:'cable_overhead_triceps_extension', name:'Cable Overhead Triceps Extension', muscle:'triceps', desc:'Cable behind your head, extend your arms overhead. Triceps, especially the long head.'},
-  {id:'triceps_kickback', name:'Triceps Kickback', muscle:'triceps', desc:'Bent over, upper arm pinned to your side, extend the weight straight back behind you. Triceps isolation.'},
-];
+  // ---- Chest ----
+  {id:'bench_press', name:'Bench Press', muscles:['chest'], equip:['barbell','dumbbell','machine'], desc:'Lying flat on a bench, press the weight up from chest level. Chest, front shoulders, triceps. Machine = Smith machine.'},
+  {id:'incline_bench_press', name:'Incline Bench Press', muscles:['chest'], equip:['barbell','dumbbell','machine'], desc:'Bench press on an inclined bench. Targets the upper chest more. Machine = Smith machine.'},
+  {id:'decline_bench_press', name:'Decline Bench Press', muscles:['chest'], equip:['barbell','dumbbell','machine'], desc:'Bench press on a declined bench, head lower than hips. Targets the lower chest.'},
+  {id:'chest_fly', name:'Butterfly', muscles:['chest'], equip:['dumbbell','cable','machine'], desc:'Arc your arms out wide and bring them back together in front of your chest, like wings closing. Dumbbells on a bench, standing at a cable station, or the pec deck machine. Isolates the chest.'},
+  {id:'chest_press_machine', name:'Machine Chest Press', muscles:['chest'], desc:'Seated machine press. Chest, shoulders, triceps — guided and stable.'},
+  {id:'push_ups', name:'Push-Ups', muscles:['chest'], desc:'Bodyweight press from the floor, hands under shoulders. Chest, shoulders, triceps, core.'},
+  {id:'dips', name:'Dips', muscles:['chest','triceps'], desc:'Lower and press your bodyweight up between parallel bars. Chest, triceps, shoulders. Log any added weight in the weight column.'},
+  {id:'landmine_press', name:'Landmine Press', muscles:['chest','shoulders'], desc:'Standing or half-kneeling, press one end of a landmine-anchored barbell up and forward from your shoulder. Upper chest, front shoulders, triceps — kind on the shoulders.'},
+  {id:'pullover', name:'Pullover', muscles:['chest','back'], equip:['dumbbell','cable'], desc:'Lying across a bench, lower a dumbbell back behind your head with straight-ish arms, then pull it back up over your chest. Chest, lats, serratus.'},
+  // ---- Triceps ----
+  {id:'close_grip_bench_press', name:'Close-Grip Bench Press', muscles:['triceps','chest'], equip:['barbell','machine'], desc:'Bench press with hands about shoulder-width apart, elbows tucked. Triceps, inner chest. Machine = Smith machine.'},
+  {id:'skull_crushers', name:'Skull Crushers', muscles:['triceps'], equip:['barbell','dumbbell'], desc:'Lying down, lower a barbell (or EZ-bar) or dumbbells toward your forehead, then extend. Triceps.'},
+  {id:'triceps_pushdown', name:'Triceps Pushdown', muscles:['triceps'], desc:'Cable pushdown of a bar or rope from chest height down to your thighs. Triceps.'},
+  {id:'single_arm_cable_pushdown', name:'Single-Arm Cable Pushdown', muscles:['triceps'], desc:'One-arm cable pushdown with a single handle, one side at a time. Triceps, easier to focus form per side.'},
+  {id:'triceps_kickback', name:'Triceps Extension', muscles:['triceps'], equip:['cable','dumbbell'], desc:'Bent over, upper arm pinned to your side, extend the weight straight back behind you (kickback). Triceps isolation.'},
+  {id:'cable_overhead_triceps_extension', name:'Overhead Triceps Extension', muscles:['triceps'], equip:['cable','dumbbell'], desc:'Weight behind your head, extend your arms overhead. Triceps, especially the long head.'},
+  {id:'close_grip_push_ups', name:'Close-Grip Push-Ups', muscles:['triceps','chest'], desc:'Push-ups with hands close together under your chest, elbows tucked. Triceps, chest.'},
+  // ---- Shoulders ----
+  {id:'overhead_press', name:'Overhead Press', muscles:['shoulders'], equip:['barbell','dumbbell','machine'], desc:'Press the weight overhead from shoulder height. Front/side delts, triceps. Machine = shoulder press machine.'},
+  {id:'neutral_grip_db_press', name:'Neutral-Grip Dumbbell Shoulder Press', muscles:['shoulders'], desc:'Seated or standing, press dumbbells overhead with palms facing each other. Front delts, triceps — easier on the shoulders.'},
+  {id:'arnold_press', name:'Arnold Press', muscles:['shoulders'], desc:'Dumbbell overhead press with a rotation as you press up. Full shoulder.'},
+  {id:'lateral_raise', name:'Lateral Raises', muscles:['shoulders'], equip:['dumbbell','cable','machine'], desc:'Raise the weight out to the sides to shoulder height. Side delts.'},
+  {id:'front_raise', name:'Front Raise', muscles:['shoulders'], equip:['dumbbell','barbell','cable'], desc:'Raise the weight straight out in front of you to shoulder height. Front delts.'},
+  {id:'rear_delt_fly', name:'Rear Delt Fly', muscles:['shoulders','back'], equip:['dumbbell','cable','machine'], desc:'Bent over (or at a cable crossover / reverse pec deck), raise your arms out to the sides. Rear delts, rhomboids, upper back.'},
+  {id:'cable_face_pull', name:'Face Pulls', muscles:['shoulders','back'], desc:'Rope attachment on a cable, pull toward your face with elbows high. Rear delts, upper back, rhomboids.'},
+  {id:'upright_row', name:'Upright Row', muscles:['shoulders'], equip:['barbell','dumbbell','cable'], desc:'Stand and pull the weight straight up along your body to chest height, elbows leading. Side delts, traps.'},
+  // ---- Biceps ----
+  {id:'incline_dumbbell_curl', name:'Incline Dumbbell Curl', muscles:['biceps'], desc:'Seated back on an inclined bench with arms hanging straight down, curl dumbbells up. Deep stretch on the biceps, especially the long head.'},
+  {id:'hammer_curl', name:'Hammer Curl', muscles:['biceps'], equip:['dumbbell','cable'], desc:'Curl with palms facing each other (dumbbells, or a rope on a cable). Biceps and forearms.'},
+  {id:'cable_curl', name:'Cable Curl', muscles:['biceps'], desc:'Curl a cable bar or rope up toward your shoulders. Biceps, constant tension.'},
+  {id:'single_arm_cable_curl', name:'Single-Arm Cable Curl', muscles:['biceps'], desc:'One-arm cable curl, one side at a time. Biceps, easier to focus form per side.'},
+  {id:'preacher_curl', name:'Preacher Curl', muscles:['biceps'], equip:['barbell','dumbbell','machine'], desc:'Arms resting on an angled preacher pad, curl the weight up. Strict biceps isolation, no swinging.'},
+  {id:'barbell_curl', name:'Barbell Curl', muscles:['biceps'], desc:'Standing curl of a barbell up to your shoulders. Biceps.'},
+  {id:'reverse_barbell_curl', name:'Reverse Barbell Curl', muscles:['biceps'], desc:'Standing curl of a barbell with palms facing down (overhand grip). Biceps, brachialis, forearms.'},
+  // ---- Legs ----
+  {id:'back_squat', name:'Back Squat', muscles:['legs'], equip:['barbell','machine'], desc:'Weight across your upper back, squat down and stand back up. Quads, glutes, hamstrings. Machine = Smith machine.'},
+  {id:'hack_squat', name:'Hack Squat', muscles:['legs'], equip:['machine','barbell'], desc:'Squat on a hack squat machine (or barbell held behind your legs). Quads, glutes — a squat alternative.'},
+  {id:'leg_press', name:'Leg Press', muscles:['legs'], desc:'Seated machine, press a weighted platform with your legs. Quads, glutes, hamstrings.'},
+  {id:'inclined_leg_press', name:'Inclined Leg Press', muscles:['legs'], desc:'Leg press on an inclined sled. Quads, glutes, hamstrings, slightly different angle than the standard leg press.'},
+  {id:'single_leg_lunges', name:'Bulgarian Split Squat', muscles:['legs'], equip:['dumbbell','barbell'], desc:'Rear foot up on a bench behind you, squat down on the front leg. Quads, glutes, balance — one leg at a time.'},
+  {id:'walking_lunges', name:'Walking Lunges', muscles:['legs'], equip:['dumbbell','barbell'], desc:'Step forward into a lunge, alternating legs as you walk. Quads, glutes, balance.'},
+  {id:'step_ups', name:'Step-Ups', muscles:['legs'], equip:['dumbbell','barbell'], desc:'Step up onto a box or bench with one leg, drive through the heel to stand tall. Quads, glutes.'},
+  {id:'leg_curl', name:'Leg Curl', muscles:['legs'], desc:'Machine curl of the lower leg, face down or seated. Hamstring isolation.'},
+  {id:'leg_extension', name:'Leg Extension', muscles:['legs'], desc:'Seated machine extension of the lower leg. Quad isolation.'},
+  {id:'calf_extension', name:'Calf Raise', muscles:['legs'], equip:['machine','dumbbell','barbell'], desc:'Standing or seated, raise up onto your toes and lower slowly. Calves.'},
+  {id:'glute_bridges', name:'Glute Bridges', muscles:['legs'], equip:['barbell','dumbbell','machine'], desc:'Lying on your back (or shoulders on a bench for a hip thrust), drive your hips up with the weight across them. Glutes, hamstrings.'},
+  // ---- Back ----
+  {id:'barbell_row', name:'Barbell Row', muscles:['back'], desc:'Bent over, pull a barbell up to your torso. Mid-back and lats.'},
+  {id:'dumbbell_rows', name:'Dumbbell Rows', muscles:['back'], desc:'Bent over, pull two dumbbells up to your torso at the same time. Mid-back and lats.'},
+  {id:'pull_ups', name:'Pull-Ups', muscles:['back'], desc:'Pull your bodyweight up to a bar, palms facing away. Lats, back, biceps. Log added weight in the weight column (0 = bodyweight).'},
+  {id:'chin_up', name:'Chin Up', muscles:['back'], desc:'Pull your bodyweight up to a bar, palms facing you (underhand grip). Lats, back, biceps.'},
+  {id:'lat_pulldown', name:'Lat Pulldown', muscles:['back'], equip:['cable','machine'], desc:'Seated, pull a bar or handles down to your chest. Lats and back.'},
+  {id:'chest_supported_row', name:'Chest-Supported Row', muscles:['back'], equip:['dumbbell','machine','barbell'], desc:'Chest resting on an incline bench or machine pad, row the weight up. Mid-back and lats, no lower-back strain.'},
+  {id:'seated_cable_row', name:'Seated Cable Row', muscles:['back'], equip:['cable','machine'], desc:'Seated, pull a handle toward your torso. Mid-back and lats.'},
+  {id:'single_arm_row', name:'Single-Arm Dumbbell Row', muscles:['back'], desc:'One-arm dumbbell row, bracing your other arm on a bench. Lats, mid-back, one side at a time.'},
+  {id:'straight_arm_pulldown', name:'Straight-Arm Pulldown', muscles:['back'], desc:'Standing at a cable, arms straight, sweep the bar or rope down to your thighs. Lats isolation.'},
+  {id:'glute_ham_raise', name:'Back Extension', muscles:['back'], desc:'Hips on the pad of a back-extension bench, lower your torso then raise it back in line with your legs. Lower back, glutes, hamstrings. Hold a plate for extra weight.'},
+  {id:'deadlift', name:'Deadlift', muscles:['back'], desc:'Lift a loaded barbell off the floor to hip level. Back, glutes, hamstrings — full body.'},
+  {id:'shrugs', name:'Shrugs', muscles:['back'], equip:['barbell','dumbbell','machine'], desc:'Shrug the weight straight up toward your ears and lower with control. Traps.'},
+  {id:'farmers_walk', name:'Farmers Walk', muscles:['back'], unit:'min', desc:'Carry a heavy weight in each hand and walk for time. Log minutes instead of reps. Traps, grip, core.'},
+].map(e => ({ ...e, muscle: e.muscles[0] }));
+
+const EQUIPMENT = { barbell:'Barbell', dumbbell:'Dumbbell', cable:'Cable', machine:'Machine' };
+const musclesOf = ex => (ex && (ex.muscles || (ex.muscle ? [ex.muscle] : []))) || [];
+const equipLabel = eq => EQUIPMENT[eq] || '';
+// The name to show for a logged entry, with its equipment, e.g. "Bench Press · Dumbbell".
+const entryLabel = e => e.exerciseName + (e.equipment ? ` · ${equipLabel(e.equipment)}` : '');
 
 const TAGLINES = [
   "Every set counts. Let's see the damage. 💥",
@@ -246,22 +285,39 @@ const BADGE_DEFS = [
 // Must be declared before loadState() is invoked below (loadState calls migrateLegacyExercises,
 // which reads this const — a const isn't usable until its own declaration line has run).
 const LEGACY_EXERCISE_RENAMES = {
-  'dumbbell_pull_back': { id:'dumbbell_rows', name:'Dumbbell Rows' },
-  'cable_kickback': { id:'triceps_kickback', name:'Triceps Kickback' },
+  'dumbbell_pull_back': { id:'dumbbell_rows' },
+  'cable_kickback': { id:'triceps_kickback', equipment:'cable' },
+  // Exercises merged into one entry with equipment ticks (Oct 2026):
+  'dumbbell_bench_press': { id:'bench_press', equipment:'dumbbell' },
+  'incline_dumbbell_bench_press': { id:'incline_bench_press', equipment:'dumbbell' },
+  'dumbbell_fly': { id:'chest_fly', equipment:'dumbbell' },
+  'cable_chest_fly': { id:'chest_fly', equipment:'cable' },
+  'butterfly_machine': { id:'chest_fly', equipment:'machine' },
+  'cable_lateral_raise': { id:'lateral_raise', equipment:'cable' },
+  'cable_front_raise': { id:'front_raise', equipment:'cable' },
+  'reverse_fly': { id:'rear_delt_fly', equipment:'dumbbell' },
+  'cable_reverse_fly': { id:'rear_delt_fly', equipment:'cable' },
 };
+// Brings saved data up to date with the exercise list: merged ids, new names,
+// and an equipment tick on every entry of an exercise that has equipment options.
+// Safe to run any number of times.
 function migrateLegacyExercises(st){
   let changed = false;
-  Object.keys(LEGACY_EXERCISE_RENAMES).forEach(oldId=>{
-    const to = LEGACY_EXERCISE_RENAMES[oldId];
-    (st.workouts||[]).forEach(w=>{
-      (w.entries||[]).forEach(entry=>{
-        if(entry.exerciseId === oldId){ entry.exerciseId = to.id; entry.exerciseName = to.name; changed = true; }
-      });
-    });
-    (st.goals||[]).forEach(g=>{
-      if(g.type==='exercise' && g.exerciseId === oldId){ g.exerciseId = to.id; changed = true; }
+  const upgrade = obj => {
+    const to = LEGACY_EXERCISE_RENAMES[obj.exerciseId];
+    if(to){ obj.exerciseId = to.id; if(to.equipment) obj.equipment = to.equipment; changed = true; }
+    const ex = PRESET_EXERCISES.find(p=>p.id===obj.exerciseId);
+    if(ex && ex.equip && !obj.equipment){ obj.equipment = ex.equip[0]; changed = true; }
+    if(ex && !ex.equip && obj.equipment){ delete obj.equipment; changed = true; }
+    return ex;
+  };
+  (st.workouts||[]).forEach(w=>{
+    (w.entries||[]).forEach(entry=>{
+      const ex = upgrade(entry);
+      if(ex && entry.exerciseName !== ex.name){ entry.exerciseName = ex.name; changed = true; }
     });
   });
+  (st.goals||[]).forEach(g=>{ if(g.type==='exercise') upgrade(g); });
   return changed;
 }
 let state = loadState();
@@ -352,6 +408,12 @@ function weekRangeForOffset(offset){
 /* ============================= DATA ACCESS ============================= */
 function getAllExercises(){ return PRESET_EXERCISES.concat(state.customExercises); }
 function getExerciseById(id){ return getAllExercises().find(e=>e.id===id); }
+// Muscle groups a logged entry counts toward (all of its exercise's groups).
+function entryMuscles(entry){
+  const m = musclesOf(getExerciseById(entry.exerciseId));
+  return m.length ? m : [entry.muscleGroup];
+}
+const sameEquip = (entry, equipment) => equipment===undefined || (entry.equipment||'')===(equipment||'');
 
 function getWorkoutForDate(iso){ return state.workouts.find(w=>w.date===iso); }
 function getOrCreateWorkoutForDate(iso){
@@ -406,11 +468,10 @@ function computeProteinSeries(daysBack){
   return series;
 }
 
-function lastEntryForExercise(exerciseId, beforeDate){
-  const past = sortedWorkoutsDesc().filter(w=> w.date < beforeDate || (w.date===beforeDate));
+function lastEntryForExercise(exerciseId, beforeDate, equipment){
   for(const w of sortedWorkoutsDesc()){
     if(w.date >= beforeDate) continue;
-    const entry = w.entries.find(e=>e.exerciseId===exerciseId);
+    const entry = w.entries.find(e=>e.exerciseId===exerciseId && sameEquip(e, equipment));
     if(entry) return entry;
   }
   return null;
@@ -482,10 +543,12 @@ function computeWeeklyStats(monday, sunday){
   state.workouts.forEach(w=>{
     if(w.date < monday || w.date > sunday) return;
     w.entries.forEach(entry=>{
-      const st = stats[entry.muscleGroup];
-      if(!st) return;
-      st.sets += entry.sets.length;
-      st.sessionDates.add(w.date);
+      entryMuscles(entry).forEach(mg=>{
+        const st = stats[mg];
+        if(!st) return;
+        st.sets += entry.sets.length;
+        st.sessionDates.add(w.date);
+      });
     });
     const coreMinutes = Number(w.coreMinutes)||0;
     if(coreMinutes>0){
@@ -576,10 +639,10 @@ function checkForNewBadges(){
 }
 
 /* ============================= GOALS ============================= */
-function bestWeightEverForExercise(exerciseId){
+function bestWeightEverForExercise(exerciseId, equipment){
   let best = 0;
   state.workouts.forEach(w=> w.entries.forEach(e=>{
-    if(e.exerciseId===exerciseId){ e.sets.forEach(s=>{ if(Number(s.weight)>best) best = Number(s.weight); }); }
+    if(e.exerciseId===exerciseId && sameEquip(e, equipment)){ e.sets.forEach(s=>{ if(Number(s.weight)>best) best = Number(s.weight); }); }
   }));
   return best;
 }
@@ -587,7 +650,7 @@ function recomputeGoalAchievements(){
   let changed = false;
   state.goals.forEach(g=>{
     if(g.type==='exercise'){
-      const best = bestWeightEverForExercise(g.exerciseId);
+      const best = bestWeightEverForExercise(g.exerciseId, g.equipment);
       const nowAchieved = best >= g.targetWeight;
       if(nowAchieved && !g.achieved) changed = true;
       g.currentBest = best;
@@ -646,20 +709,23 @@ function renderLogTab(){
   } else {
     entries.forEach((entry, idx)=>{
       const muscle = MUSCLE_MAP[entry.muscleGroup];
-      const prev = lastEntryForExercise(entry.exerciseId, ui.logDate);
       const exDef = getExerciseById(entry.exerciseId);
+      const prev = lastEntryForExercise(entry.exerciseId, ui.logDate, exDef && exDef.equip ? entry.equipment : undefined);
+      const isMin = exDef && exDef.unit==='min';
+      const groups = entryMuscles(entry).map(id=>MUSCLE_MAP[id]).filter(Boolean);
       html += `<div class="card" data-entry-idx="${idx}">
         <div class="exercise-card-header">
           <div>
             <div class="name">${muscle.emoji} ${entry.exerciseName}</div>
-            <div class="muscle-tag">${muscle.name}</div>
+            <div class="muscle-tag">${groups.map(g=>g.name).join(' · ')}</div>
           </div>
           <button class="remove-exercise" data-action="remove-entry" data-idx="${idx}">✕</button>
         </div>
+        ${exDef && exDef.equip ? `<div class="equip-row" role="radiogroup" aria-label="Equipment">${exDef.equip.map(eq=>`<div class="chip ${entry.equipment===eq?'active':''}" role="radio" aria-checked="${entry.equipment===eq}" data-action="set-equipment" data-idx="${idx}" data-eq="${eq}"><span class="tick">${entry.equipment===eq?'✓':''}</span>${equipLabel(eq)}</div>`).join('')}</div>` : ''}
         ${exDef && exDef.desc ? `<div class="exercise-desc">${exDef.desc}</div>` : ''}
-        ${prev ? `<div class="last-time-hint">Last time: ${prev.sets.map(s=>`${s.weight||0}×${s.reps||0}`).join(', ')}</div>` : ''}
+        ${prev ? `<div class="last-time-hint">Last time${exDef && exDef.equip ? ` (${equipLabel(entry.equipment)})` : ''}: ${prev.sets.map(s=>`${s.weight||0}×${s.reps||0}${isMin?' min':''}`).join(', ')}</div>` : ''}
         <table class="set-table">
-          <thead><tr><th style="width:14%;">Set</th><th>Weight</th><th>Reps</th><th style="width:10%;"></th></tr></thead>
+          <thead><tr><th style="width:14%;">Set</th><th>Weight</th><th>${isMin ? 'Minutes' : 'Reps'}</th><th style="width:10%;"></th></tr></thead>
           <tbody>
             ${entry.sets.map((s,si)=>`<tr>
               <td>${si+1}</td>
@@ -780,7 +846,7 @@ function renderCardioTab(){
 function renderExercisePicker(){
   const all = getAllExercises();
   const q = ui.pickerSearch.trim().toLowerCase();
-  const loggableGroups = MUSCLE_GROUPS.filter(mg=> all.some(e=>e.muscle===mg.id));
+  const loggableGroups = MUSCLE_GROUPS.filter(mg=> all.some(e=>musclesOf(e).includes(mg.id)));
   const activeFilter = ui.pickerMuscleFilter;
 
   let html = `<div class="picker-box card">
@@ -794,13 +860,14 @@ function renderExercisePicker(){
   let anyResults = false;
   loggableGroups.forEach(mg=>{
     if(activeFilter!=='all' && activeFilter!==mg.id) return;
-    const list = all.filter(e=> e.muscle===mg.id && (!q || e.name.toLowerCase().includes(q)));
+    // In "All", list each exercise once under its main group; filtering by a group shows every exercise in it.
+    const list = all.filter(e=> (activeFilter==='all' ? musclesOf(e)[0]===mg.id : musclesOf(e).includes(mg.id)) && (!q || e.name.toLowerCase().includes(q)));
     if(list.length===0) return;
     anyResults = true;
     if(activeFilter==='all') html += `<div class="picker-group-title">${mg.emoji} ${mg.name}</div>`;
     list.forEach(e=>{
       html += `<div class="picker-item" data-action="pick-exercise" data-ex-id="${e.id}">
-        <div class="picker-item-main"><span>${e.name}</span>${e.desc ? `<span class="picker-item-desc">${e.desc}</span>` : ''}</div>
+        <div class="picker-item-main"><span>${e.name}</span>${e.equip ? `<span class="picker-item-desc">${e.equip.map(equipLabel).join(' · ')}</span>` : ''}${e.desc ? `<span class="picker-item-desc">${e.desc}</span>` : ''}</div>
         ${e.isCustom ? `<button class="set-remove" data-action="delete-custom-exercise" data-ex-id="${e.id}" title="Delete custom exercise">✕</button>` : ''}
         <span>›</span>
       </div>`;
@@ -944,7 +1011,7 @@ function renderHistoryTab(){
     if(ui.historyFilter==='stretch') return (Number(w.stretchMinutes)||0) > 0;
     if(ui.historyFilter==='running') return !!(w.runs && w.runs.length>0);
     if(ui.historyFilter==='boxing') return (Number(w.boxingMinutes)||0) > 0;
-    return w.entries.some(e=>e.muscleGroup===ui.historyFilter);
+    return w.entries.some(e=>entryMuscles(e).includes(ui.historyFilter));
   });
 
   if(days.length===0){
@@ -959,7 +1026,7 @@ function renderHistoryTab(){
     const stretchMinutes = Number(w.stretchMinutes)||0;
     const hasRunning = !!(w.runs && w.runs.length>0);
     const activityChips = Array.from(new Set(
-      w.entries.map(e=>e.muscleGroup)
+      w.entries.flatMap(entryMuscles)
         .concat(coreMinutes>0 ? ['core'] : [])
         .concat(stretchMinutes>0 ? ['stretch'] : [])
         .concat(hasRunning ? ['running'] : [])
@@ -984,8 +1051,8 @@ function renderHistoryTab(){
       <div class="history-chips">${activityChips.map(mid=>`<span class="chip">${ACTIVITY_MAP[mid].emoji} ${ACTIVITY_MAP[mid].name}</span>`).join('')}</div>
       ${expanded ? `<div style="margin-top:10px;">
         ${w.entries.map(e=>`<div style="margin-bottom:8px;">
-          <div style="font-weight:600;font-size:13px;">${MUSCLE_MAP[e.muscleGroup].emoji} ${e.exerciseName}</div>
-          <div style="font-size:12px;color:var(--text-dim);">${e.sets.map(s=>`${s.weight||0}×${s.reps||0}`).join(', ')}</div>
+          <div style="font-weight:600;font-size:13px;">${MUSCLE_MAP[e.muscleGroup].emoji} ${entryLabel(e)}</div>
+          <div style="font-size:12px;color:var(--text-dim);">${e.sets.map(s=>`${s.weight||0}×${s.reps||0}${(getExerciseById(e.exerciseId)||{}).unit==='min'?' min':''}`).join(', ')}</div>
         </div>`).join('')}
         ${coreMinutes>0 ? `<div style="margin-bottom:8px;">
           <div style="font-weight:600;font-size:13px;">🧱 Core</div>
@@ -1036,7 +1103,7 @@ function renderGoalsTab(){
     const ex = getExerciseById(g.exerciseId);
     const pct = Math.min(100, Math.round((g.currentBest/g.targetWeight)*100)) || 0;
     html += `<div class="card goal-item">
-      <div class="row"><strong>${ex?ex.name:'Exercise'}</strong><button class="set-remove" data-action="delete-goal" data-gid="${g.id}">✕</button></div>
+      <div class="row"><strong>${ex?ex.name:'Exercise'}${g.equipment?` · ${equipLabel(g.equipment)}`:''}</strong><button class="set-remove" data-action="delete-goal" data-gid="${g.id}">✕</button></div>
       <div style="font-size:12px;color:var(--text-dim);">Target: ${g.targetWeight} · Best so far: ${g.currentBest||0}</div>
       <div class="bar-track"><div class="bar-fill status-green" style="width:${pct}%;"></div></div>
     </div>`;
@@ -1065,7 +1132,7 @@ function renderGoalsTab(){
     achievedGoals.forEach(g=>{
       const ex = getExerciseById(g.exerciseId);
       html += `<div class="card goal-item">
-        <div class="row"><span><span class="trophy">🏆</span> ${ex?ex.name:'Exercise'} — ${g.targetWeight}</span><button class="set-remove" data-action="delete-goal" data-gid="${g.id}">✕</button></div>
+        <div class="row"><span><span class="trophy">🏆</span> ${ex?ex.name:'Exercise'}${g.equipment?` · ${equipLabel(g.equipment)}`:''} — ${g.targetWeight}</span><button class="set-remove" data-action="delete-goal" data-gid="${g.id}">✕</button></div>
       </div>`;
     });
   }
@@ -1124,15 +1191,113 @@ function renderGoalFields(){
     container.innerHTML = `
       <label class="field-label">Exercise</label>
       <select id="goal-exercise">${all.map(e=>`<option value="${e.id}">${e.name}</option>`).join('')}</select>
+      <div id="goal-equip-wrap"></div>
       <label class="field-label">Target weight</label>
       <input type="number" id="goal-target-weight" min="0" step="0.5" value="0">
     `;
+    renderGoalEquip();
   }
+}
+// Equipment choice for an exercise-PR goal, only for exercises that have equipment options.
+function renderGoalEquip(){
+  const wrap = document.getElementById('goal-equip-wrap');
+  const sel = document.getElementById('goal-exercise');
+  if(!wrap || !sel) return;
+  const ex = getExerciseById(sel.value);
+  wrap.innerHTML = ex && ex.equip ? `<label class="field-label">Equipment</label>
+    <select id="goal-equipment">${ex.equip.map(eq=>`<option value="${eq}">${equipLabel(eq)}</option>`).join('')}</select>` : '';
 }
 
 /* ============================= RENDER: PROGRESS TAB ============================= */
+const progressKey = e => e.exerciseId + '::' + (e.equipment||'');
+
+/* ---------- Exercise progress: one row per exercise (and equipment) with its max load ---------- */
+function exerciseProgressRows(){
+  const map = {};
+  sortedWorkoutsAsc().forEach(w=> w.entries.forEach(e=>{
+    const sets = e.sets.filter(s=> s.weight!=='' || s.reps!=='').map(s=>({weight:Number(s.weight)||0, reps:Number(s.reps)||0}));
+    if(!sets.length) return;
+    // Heaviest set of the session (more reps wins a tie).
+    const top = sets.reduce((b,s)=> s.weight>b.weight || (s.weight===b.weight && s.reps>b.reps) ? s : b);
+    const k = progressKey(e);
+    if(!map[k]) map[k] = { key:k, label:entryLabel(e), muscles:entryMuscles(e), unit:(getExerciseById(e.exerciseId)||{}).unit, sessions:[] };
+    map[k].sessions.push({ date:w.date, weight:top.weight, reps:top.reps, oneRm:Math.max(...sets.map(s=>estOneRM(s.weight,s.reps))) });
+  }));
+  return Object.values(map).map(r=>{
+    const ss = r.sessions;
+    r.bodyweight = ss.every(x=>x.weight===0);      // e.g. push-ups: track reps instead of load
+    const val = x => r.bodyweight ? x.reps : x.weight;
+    r.best = ss.reduce((b,x)=> val(x)>val(b) || (val(x)===val(b) && x.reps>b.reps) ? x : b);
+    r.first = ss[0]; r.last = ss[ss.length-1];
+    r.change = val(r.best) - val(r.first);
+    r.newBest = ss.length>1 && r.best.date===r.last.date && val(r.last) > Math.max(...ss.slice(0,-1).map(val));
+    r.val = val;
+    return r;
+  }).sort((a,b)=> a.last.date<b.last.date ? 1 : a.last.date>b.last.date ? -1 : a.label.localeCompare(b.label));
+}
+
+// Small line chart drawn as SVG (no add-on needed, works offline).
+function progressSvg(values, labels, big){
+  const W = big ? 320 : 120, H = big ? 140 : 30, padL = big ? 28 : 2, padR = big ? 8 : 2, padT = big ? 10 : 3, padB = big ? 20 : 3;
+  if(values.length===1) values = [values[0], values[0]];
+  const lo = Math.min(...values), hi = Math.max(...values), span = hi-lo || 1;
+  const x = i => padL + (W-padL-padR) * (values.length===1 ? 0 : i/(values.length-1));
+  const y = v => padT + (H-padT-padB) * (1 - (v-lo)/span);
+  const pts = values.map((v,i)=>`${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  const area = `${x(0).toFixed(1)},${H-padB} ${pts} ${x(values.length-1).toFixed(1)},${H-padB}`;
+  let extra = '';
+  if(big){
+    extra += values.map((v,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="var(--accent)"/>`).join('');
+    extra += `<text x="${padL-4}" y="${y(hi)+3}" text-anchor="end">${hi}</text>`;
+    if(hi!==lo) extra += `<text x="${padL-4}" y="${y(lo)+3}" text-anchor="end">${lo}</text>`;
+    extra += `<text x="${padL}" y="${H-5}">${labels[0]}</text><text x="${W-padR}" y="${H-5}" text-anchor="end">${labels[labels.length-1]}</text>`;
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" width="${big?'100%':W}" height="${big?'auto':H}" preserveAspectRatio="${big?'xMidYMid meet':'none'}" aria-hidden="true" style="display:block;${big?'':'flex:none;'}">
+    <polygon points="${area}" fill="var(--accent-dim)"/>
+    <polyline points="${pts}" fill="none" stroke="var(--accent)" stroke-width="${big?2:1.6}" stroke-linejoin="round" stroke-linecap="round"/>${extra}</svg>`;
+}
+
+function renderExerciseProgress(){
+  const rows = exerciseProgressRows();
+  if(!rows.length) return `<div class="empty-state">Log a few workouts to see your progress and max loads here.</div>`;
+  const groups = MUSCLE_GROUPS.filter(mg=> rows.some(r=>r.muscles.includes(mg.id)));
+  const f = ui.progressFilter || 'all';
+  let html = `<div class="prog-filter">
+    <div class="chip ${f==='all'?'active':''}" data-action="progress-filter" data-filter="all">All</div>
+    ${groups.map(mg=>`<div class="chip ${f===mg.id?'active':''}" data-action="progress-filter" data-filter="${mg.id}">${mg.emoji} ${mg.name}</div>`).join('')}
+  </div>`;
+  rows.filter(r=> f==='all' || r.muscles.includes(f)).forEach(r=>{
+    const unitWord = r.unit==='min' ? ' min' : '';
+    const maxNum = r.bodyweight ? `${r.best.reps}` : `${r.best.weight}`;
+    const maxLbl = r.bodyweight ? `Max ${r.unit==='min'?'minutes':'reps'}` : `Max load · ×${r.best.reps}${unitWord}`;
+    const sign = r.change>0 ? `<span class="up">+${+r.change.toFixed(2)}</span>` : r.change<0 ? `<span class="down">${+r.change.toFixed(2)}</span>` : '<span>±0</span>';
+    const open = ui.progressOpen===r.key;
+    const vals = r.sessions.map(r.val);
+    html += `<div class="prog-row" data-action="progress-open" data-key="${r.key}">
+      <div class="prog-top">
+        <div style="min-width:0;">
+          <div class="prog-name">${r.label}${r.newBest?'<span class="pr-badge">NEW BEST</span>':''}</div>
+          <div class="prog-sub">${r.sessions.length} session${r.sessions.length===1?'':'s'} · last ${formatHuman(r.last.date)}</div>
+        </div>
+        <div class="prog-max"><div class="num">${maxNum}</div><div class="lbl">${maxLbl}</div></div>
+      </div>
+      <div class="prog-bottom">
+        <div class="prog-change">${r.sessions.length>1 ? `${sign} since ${formatHuman(r.first.date)}` : 'First session logged'}</div>
+        ${r.sessions.length>1 ? progressSvg(vals) : ''}
+      </div>
+      ${open ? `<div class="prog-detail">
+        ${progressSvg(vals, r.sessions.map(x=>formatHuman(x.date)), true)}
+        <div class="stat-grid" style="margin-top:10px;">
+          <div class="stat-box"><div class="num">${maxNum}</div><div class="lbl">${r.bodyweight?'Best reps':'Max load'} · ${formatHuman(r.best.date)}</div></div>
+          <div class="stat-box"><div class="num">${r.bodyweight?'–':Math.max(...r.sessions.map(x=>x.oneRm)).toFixed(1)}</div><div class="lbl">Est. 1-rep max</div></div>
+        </div>
+        <table class="prog-sessions">${r.sessions.slice(-6).reverse().map(x=>`<tr><td>${formatHuman(x.date)}</td><td>${x.weight}×${x.reps}${unitWord}</td></tr>`).join('')}</table>
+      </div>` : ''}
+    </div>`;
+  });
+  return html;
+}
 function renderProgressTab(){
-  const exercisesWithData = Array.from(new Set(state.workouts.flatMap(w=>w.entries.map(e=>e.exerciseId))));
   const stats = computeBadgeStats();
   const totalSets = state.workouts.reduce((n,w)=>n + w.entries.reduce((m,e)=>m+e.sets.length,0), 0);
 
@@ -1151,21 +1316,7 @@ function renderProgressTab(){
   });
   html += `</div></div>`;
 
-  html += `<h2 class="section-title">Exercise Progress</h2>`;
-  if(exercisesWithData.length===0){
-    html += `<div class="empty-state">Log a few workouts to see progress charts here.</div>`;
-  } else {
-    if(!ui.progressExerciseId || !exercisesWithData.includes(ui.progressExerciseId)){
-      ui.progressExerciseId = exercisesWithData[0];
-    }
-    html += `<div class="card">
-      <select id="exercise-select-for-progress">
-        ${exercisesWithData.map(id=>{ const ex=getExerciseById(id); return `<option value="${id}" ${id===ui.progressExerciseId?'selected':''}>${ex?ex.name:id}</option>`; }).join('')}
-      </select>
-      <div class="canvas-wrap"><canvas id="progress-chart"></canvas></div>
-      <div id="pr-stats"></div>
-    </div>`;
-  }
+  html += `<h2 class="section-title">Exercise Progress</h2>` + renderExerciseProgress();
 
   html += `<h2 class="section-title">Cardio</h2>
   <div class="card">
@@ -1215,9 +1366,9 @@ let chartInstance = null;
 function renderProgressChart(){
   const canvas = document.getElementById('progress-chart');
   if(!canvas || typeof Chart === 'undefined') return;
-  const exId = ui.progressExerciseId;
+  const key = ui.progressExerciseId;
   const points = sortedWorkoutsAsc().map(w=>{
-    const entry = w.entries.find(e=>e.exerciseId===exId);
+    const entry = w.entries.find(e=>progressKey(e)===key);
     if(!entry) return null;
     const best = bestSetOf(entry);
     if(!best) return null;
@@ -1340,9 +1491,20 @@ function afterRender(){
 
 function addExerciseEntryToLog(exercise){
   const workout = getOrCreateWorkoutForDate(ui.logDate);
-  const prev = lastEntryForExercise(exercise.id, ui.logDate);
+  // Equipment: whatever you used last time for this exercise, otherwise its first option.
+  let equipment;
+  if(exercise.equip){
+    const lastAny = lastEntryForExercise(exercise.id, ui.logDate);
+    equipment = lastAny && exercise.equip.includes(lastAny.equipment) ? lastAny.equipment : exercise.equip[0];
+  }
+  const prev = lastEntryForExercise(exercise.id, ui.logDate, equipment);
   const startingSets = prev && prev.sets.length ? prev.sets.map(s=>({weight:s.weight, reps:s.reps})) : [{weight:'', reps:''}];
-  workout.entries.push({ exerciseId: exercise.id, exerciseName: exercise.name, muscleGroup: exercise.muscle, sets: startingSets });
+  const groups = musclesOf(exercise);
+  const muscleGroup = groups.includes(ui.pickerMuscleFilter) ? ui.pickerMuscleFilter : groups[0];
+  const entry = { exerciseId: exercise.id, exerciseName: exercise.name, muscleGroup, sets: startingSets };
+  if(equipment) entry.equipment = equipment;
+  if(prev && prev.sets.length) entry.prefilled = true;   // sets copied from last time, not typed yet
+  workout.entries.push(entry);
   ui.pickerOpenFor = null; ui.pickerSearch='';
   saveState();
   const isFirstToday = state.workouts.find(w=>w.date===ui.logDate).entries.length===1;
@@ -1406,6 +1568,22 @@ document.addEventListener('click', function(e){
   if(action==='pick-exercise'){
     const ex = getExerciseById(actionEl.dataset.exId);
     if(ex) addExerciseEntryToLog(ex);
+    return;
+  }
+  if(action==='progress-filter'){ ui.progressFilter = actionEl.dataset.filter; renderShell(); return; }
+  if(action==='progress-open'){ ui.progressOpen = ui.progressOpen===actionEl.dataset.key ? null : actionEl.dataset.key; renderShell(); return; }
+  if(action==='set-equipment'){
+    const idx = Number(actionEl.dataset.idx);
+    const entry = getWorkoutForDate(ui.logDate).entries[idx];
+    const eq = actionEl.dataset.eq;
+    if(entry.equipment !== eq){
+      const blank = entry.sets.every(s=> s.weight==='' && s.reps==='');
+      entry.equipment = eq;
+      // If nothing's been typed yet, prefill from the last time you used this equipment.
+      const prev = lastEntryForExercise(entry.exerciseId, ui.logDate, eq);
+      if(blank || entry.prefilled){ entry.sets = prev && prev.sets.length ? prev.sets.map(s=>({weight:s.weight, reps:s.reps})) : [{weight:'', reps:''}]; }
+      saveState(); renderShell();
+    }
     return;
   }
   if(action==='remove-entry'){
@@ -1539,7 +1717,10 @@ document.addEventListener('click', function(e){
       const exId = document.getElementById('goal-exercise').value;
       const target = Number(document.getElementById('goal-target-weight').value)||0;
       const ex = getExerciseById(exId);
-      state.goals.push({ id:'g_'+Date.now(), type:'exercise', exerciseId: exId, targetWeight: target, achieved:false, currentBest:0 });
+      const eqSel = document.getElementById('goal-equipment');
+      const goal = { id:'g_'+Date.now(), type:'exercise', exerciseId: exId, targetWeight: target, achieved:false, currentBest:0 };
+      if(ex && ex.equip && eqSel) goal.equipment = eqSel.value;
+      state.goals.push(goal);
     }
     saveState(); showToast('Goal added 🎯'); renderShell(); return;
   }
@@ -1583,6 +1764,7 @@ document.addEventListener('input', function(e){
     if(!workout) return;
     const field = e.target.dataset.action==='set-weight' ? 'weight' : 'reps';
     workout.entries[idx].sets[si][field] = e.target.value;
+    delete workout.entries[idx].prefilled;
     saveState();
     return;
   }
@@ -1680,6 +1862,7 @@ document.addEventListener('input', function(e){
 });
 
 document.addEventListener('change', function(e){
+  if(e.target.id==='goal-exercise'){ renderGoalEquip(); return; }
   if(e.target.id==='exercise-select-for-progress'){
     ui.progressExerciseId = e.target.value;
     renderProgressChart();
