@@ -101,6 +101,7 @@ label.field-label{font-size:12px;color:var(--text-dim);display:block;margin-bott
 .picker-filter-row{display:flex;gap:6px;overflow-x:auto;margin-top:10px;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none;}
 .picker-filter-row::-webkit-scrollbar{display:none;}
 .picker-filter-row .chip{flex:0 0 auto;cursor:pointer;}
+.picker-tier-title{font-size:10px;color:var(--text-dim);opacity:.7;text-transform:uppercase;letter-spacing:.08em;margin:8px 6px 0;padding-top:2px;}
 .picker-group-title{font-size:12px;color:var(--text-dim);margin:10px 0 4px;text-transform:uppercase;}
 .picker-item{display:flex;justify-content:space-between;align-items:center;padding:9px 6px;border-bottom:1px solid var(--border);cursor:pointer;}
 .picker-item:active{background:var(--card-hi);}
@@ -234,7 +235,6 @@ const PRESET_EXERCISES = [
   {id:'glute_bridges', name:'Glute Bridges', muscles:['legs'], equip:['barbell','dumbbell','machine'], desc:'Lying on your back (or shoulders on a bench for a hip thrust), drive your hips up with the weight across them. Glutes, hamstrings.'},
   // ---- Back ----
   {id:'barbell_row', name:'Barbell Row', muscles:['back'], desc:'Bent over, pull a barbell up to your torso. Mid-back and lats.'},
-  {id:'dumbbell_rows', name:'Dumbbell Rows', muscles:['back'], desc:'Bent over, pull two dumbbells up to your torso at the same time. Mid-back and lats.'},
   {id:'pull_ups', name:'Pull-Ups', muscles:['back'], desc:'Pull your bodyweight up to a bar, palms facing away. Lats, back, biceps. Log added weight in the weight column (0 = bodyweight).'},
   {id:'chin_up', name:'Chin Up', muscles:['back'], desc:'Pull your bodyweight up to a bar, palms facing you (underhand grip). Lats, back, biceps.'},
   {id:'lat_pulldown', name:'Lat Pulldown', muscles:['back'], equip:['cable','machine'], desc:'Seated, pull a bar or handles down to your chest. Lats and back.'},
@@ -247,6 +247,18 @@ const PRESET_EXERCISES = [
   {id:'shrugs', name:'Shrugs', muscles:['back'], equip:['barbell','dumbbell','machine'], desc:'Shrug the weight straight up toward your ears and lower with control. Traps.'},
   {id:'farmers_walk', name:'Farmers Walk', muscles:['back'], unit:'min', desc:'Carry a heavy weight in each hand and walk for time. Log minutes instead of reps. Traps, grip, core.'},
 ].map(e => ({ ...e, muscle: e.muscles[0] }));
+
+// Picker order within each muscle group: compounds first, then accessories, then isolations.
+const EXERCISE_TIERS = {
+  compound:['bench_press','incline_bench_press','decline_bench_press','dips','close_grip_bench_press','deadlift','pull_ups','chin_up','barbell_row','lat_pulldown','overhead_press','neutral_grip_db_press','arnold_press','back_squat','hack_squat','leg_press','inclined_leg_press'],
+  accessory:['chest_press_machine','landmine_press','push_ups','pullover','close_grip_push_ups','single_arm_row','chest_supported_row','seated_cable_row','glute_ham_raise','farmers_walk','upright_row','cable_face_pull','single_leg_lunges','walking_lunges','step_ups','glute_bridges'],
+  isolation:['chest_fly','straight_arm_pulldown','shrugs','lateral_raise','front_raise','rear_delt_fly','barbell_curl','incline_dumbbell_curl','preacher_curl','hammer_curl','cable_curl','single_arm_cable_curl','reverse_barbell_curl','skull_crushers','triceps_pushdown','single_arm_cable_pushdown','triceps_kickback','cable_overhead_triceps_extension','leg_curl','leg_extension','calf_extension'],
+};
+const TIER_LABELS = { compound:'Compound', accessory:'Accessory', isolation:'Isolation' };
+const TIER_RANK = {}, TIER_OF = {};
+Object.keys(EXERCISE_TIERS).forEach((t,ti)=> EXERCISE_TIERS[t].forEach((id,i)=>{ TIER_RANK[id] = ti*1000 + i; TIER_OF[id] = t; }));
+const tierRank = ex => (ex.id in TIER_RANK) ? TIER_RANK[ex.id] : 9999;
+const tierLabel = ex => TIER_LABELS[TIER_OF[ex.id]] || '';
 
 const EQUIPMENT = { barbell:'Barbell', dumbbell:'Dumbbell', cable:'Cable', machine:'Machine' };
 const musclesOf = ex => (ex && (ex.muscles || (ex.muscle ? [ex.muscle] : []))) || [];
@@ -843,29 +855,25 @@ function renderCardioTab(){
   return html;
 }
 
-function renderExercisePicker(){
+function renderPickerListHTML(){
   const all = getAllExercises();
   const q = ui.pickerSearch.trim().toLowerCase();
   const loggableGroups = MUSCLE_GROUPS.filter(mg=> all.some(e=>musclesOf(e).includes(mg.id)));
   const activeFilter = ui.pickerMuscleFilter;
-
-  let html = `<div class="picker-box card">
-    <input type="text" id="picker-search-input" placeholder="Search exercises..." value="${ui.pickerSearch.replace(/"/g,'&quot;')}">
-    <div class="picker-filter-row">
-      <div class="chip ${activeFilter==='all'?'active':''}" data-action="picker-muscle-filter" data-muscle-id="all">All</div>
-      ${loggableGroups.map(mg=>`<div class="chip ${activeFilter===mg.id?'active':''}" data-action="picker-muscle-filter" data-muscle-id="${mg.id}">${mg.emoji} ${mg.name}</div>`).join('')}
-    </div>
-    <div class="picker-list">`;
-
+  let html = '';
   let anyResults = false;
   loggableGroups.forEach(mg=>{
     if(activeFilter!=='all' && activeFilter!==mg.id) return;
     // In "All", list each exercise once under its main group; filtering by a group shows every exercise in it.
-    const list = all.filter(e=> (activeFilter==='all' ? musclesOf(e)[0]===mg.id : musclesOf(e).includes(mg.id)) && (!q || e.name.toLowerCase().includes(q)));
+    const list = all.filter(e=> (activeFilter==='all' ? musclesOf(e)[0]===mg.id : musclesOf(e).includes(mg.id)) && (!q || e.name.toLowerCase().includes(q)))
+      .map((e,i)=>({e,i})).sort((a,b)=> tierRank(a.e)-tierRank(b.e) || a.i-b.i).map(x=>x.e);
     if(list.length===0) return;
     anyResults = true;
     if(activeFilter==='all') html += `<div class="picker-group-title">${mg.emoji} ${mg.name}</div>`;
+    let lastTier = null;
     list.forEach(e=>{
+      const t = tierLabel(e);
+      if(t !== lastTier){ if(t) html += `<div class="picker-tier-title">${t}</div>`; lastTier = t; }
       html += `<div class="picker-item" data-action="pick-exercise" data-ex-id="${e.id}">
         <div class="picker-item-main"><span>${e.name}</span>${e.equip ? `<span class="picker-item-desc">${e.equip.map(equipLabel).join(' · ')}</span>` : ''}${e.desc ? `<span class="picker-item-desc">${e.desc}</span>` : ''}</div>
         ${e.isCustom ? `<button class="set-remove" data-action="delete-custom-exercise" data-ex-id="${e.id}" title="Delete custom exercise">✕</button>` : ''}
@@ -876,8 +884,21 @@ function renderExercisePicker(){
   if(!anyResults){
     html += `<div class="empty-state">No exercises match. Try a different search or group.</div>`;
   }
+  return html;
+}
 
-  html += `</div>
+function renderExercisePicker(){
+  const all = getAllExercises();
+  const loggableGroups = MUSCLE_GROUPS.filter(mg=> all.some(e=>musclesOf(e).includes(mg.id)));
+  const activeFilter = ui.pickerMuscleFilter;
+
+  let html = `<div class="picker-box card">
+    <input type="text" id="picker-search-input" placeholder="Search exercises..." value="${ui.pickerSearch.replace(/"/g,'&quot;')}">
+    <div class="picker-filter-row">
+      <div class="chip ${activeFilter==='all'?'active':''}" data-action="picker-muscle-filter" data-muscle-id="all">All</div>
+      ${loggableGroups.map(mg=>`<div class="chip ${activeFilter===mg.id?'active':''}" data-action="picker-muscle-filter" data-muscle-id="${mg.id}">${mg.emoji} ${mg.name}</div>`).join('')}
+    </div>
+    <div class="picker-list">${renderPickerListHTML()}</div>
     <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:10px;">
       <div id="custom-ex-form" class="hidden">
         <label class="field-label">Exercise name</label>
@@ -1543,7 +1564,10 @@ document.addEventListener('click', function(e){
   if(e.target.id==='log-goto-today'){ e.preventDefault(); ui.logDate = todayISO(); renderShell(); return; }
   if(e.target.id==='open-picker-btn'){ ui.pickerOpenFor='log'; ui.pickerMuscleFilter='all'; ui.pickerSearch=''; renderShell(); return; }
   if(e.target.id==='close-picker-btn'){ ui.pickerOpenFor=null; renderShell(); return; }
-  if(action==='picker-muscle-filter'){ ui.pickerMuscleFilter = actionEl.dataset.muscleId; renderShell(); return; }
+  if(action==='picker-muscle-filter'){
+    if(document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    ui.pickerMuscleFilter = actionEl.dataset.muscleId; renderShell(); return;
+  }
   if(e.target.id==='show-custom-ex-form'){ e.preventDefault(); document.getElementById('custom-ex-form').classList.remove('hidden'); e.target.classList.add('hidden'); return; }
   if(e.target.id==='save-custom-ex'){
     const name = document.getElementById('custom-ex-name').value.trim();
@@ -1753,9 +1777,10 @@ document.addEventListener('click', function(e){
 });
 
 document.addEventListener('input', function(e){
-  if(e.target.id==='picker-search-input'){ ui.pickerSearch = e.target.value; renderShell();
-    const input = document.getElementById('picker-search-input');
-    if(input){ input.focus(); input.selectionStart = input.selectionEnd = input.value.length; }
+  if(e.target.id==='picker-search-input'){
+    ui.pickerSearch = e.target.value;
+    const listEl = document.querySelector('.picker-list');
+    if(listEl) listEl.innerHTML = renderPickerListHTML();
     return;
   }
   if(e.target.dataset.action==='set-weight' || e.target.dataset.action==='set-reps'){
@@ -1890,6 +1915,19 @@ document.addEventListener('change', function(e){
 });
 
 /* ============================= INIT ============================= */
+// iOS fix: after the keyboard closes, the fixed bottom nav can get stuck mid-screen.
+// Nudge the scroll position after keyboard dismissal to force a correct re-layout.
+function resetViewportAfterKeyboard(){
+  setTimeout(()=>{ window.scrollTo(window.scrollX, window.scrollY); }, 100);
+  setTimeout(()=>{ window.scrollTo(window.scrollX, window.scrollY); }, 350);
+}
+document.addEventListener('focusout', resetViewportAfterKeyboard);
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', ()=>{
+    if(window.visualViewport.height >= window.innerHeight - 1) resetViewportAfterKeyboard();
+  });
+}
+
 renderShell();
 </script>
 </body>
