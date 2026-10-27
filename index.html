@@ -110,6 +110,8 @@ nav#bottom-nav button{flex:1;background:none;border:none;color:var(--text-dim);p
 nav#bottom-nav button.active{color:var(--accent);}
 nav#bottom-nav .nav-emoji{font-size:20px;}
 .empty-state{text-align:center;color:var(--text-dim);font-size:13px;padding:30px 10px;}
+.scroll-fab{position:fixed;right:14px;bottom:92px;width:42px;height:42px;border-radius:50%;background:var(--card-hi);border:1px solid var(--border);color:var(--text);font-size:20px;line-height:1;display:none;align-items:center;justify-content:center;cursor:pointer;z-index:9;box-shadow:0 4px 16px rgba(0,0,0,.45);opacity:.9;padding:0;}
+.scroll-fab:active{opacity:.6;}
 .toast{position:fixed;bottom:88px;left:50%;transform:translateX(-50%) translateY(10px);background:var(--card-hi);border:1px solid var(--accent);padding:10px 18px;border-radius:20px;font-size:13px;font-weight:600;box-shadow:0 4px 24px rgba(0,0,0,.5);z-index:50;opacity:0;transition:opacity .3s, transform .3s;pointer-events:none;max-width:85%;text-align:center;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 .badge-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:8px;}
@@ -160,6 +162,7 @@ footer.small-actions{display:flex;gap:8px;margin-top:14px;}
   </nav>
 </div>
 <div class="toast" id="toast"></div>
+<button class="scroll-fab" id="scroll-fab" aria-label="Scroll to bottom">↓</button>
 <input type="file" id="import-file-input" accept="application/json" class="hidden">
 
 <script>
@@ -259,6 +262,22 @@ const TIER_RANK = {}, TIER_OF = {};
 Object.keys(EXERCISE_TIERS).forEach((t,ti)=> EXERCISE_TIERS[t].forEach((id,i)=>{ TIER_RANK[id] = ti*1000 + i; TIER_OF[id] = t; }));
 const tierRank = ex => (ex.id in TIER_RANK) ? TIER_RANK[ex.id] : 9999;
 const tierLabel = ex => TIER_LABELS[TIER_OF[ex.id]] || '';
+
+// Activities that can be switched off in Goals → Adjust (hidden from Log/Week/Progress; history is kept).
+const TRACKABLES = [
+  {id:'calories', emoji:'🔥', name:'Calories'},
+  {id:'protein',  emoji:'🥩', name:'Protein'},
+  {id:'core',     emoji:'🧱', name:'Core'},
+  {id:'running',  emoji:'🏃', name:'Running'},
+  {id:'boxing',   emoji:'🥊', name:'Boxing'},
+  {id:'stretch',  emoji:'🧘', name:'Stretch'},
+];
+const DEFAULT_CALORIE_TARGET = 2800;
+function isTracked(id){ const t = state.settings && state.settings.tracking; return !(t && t[id]===false); }
+const calorieTarget = () => state.settings.dailyCalorieTarget || DEFAULT_CALORIE_TARGET;
+// 'bulk' = aim to reach the target; 'cut' = aim to stay at or under it.
+const calorieMode = () => state.settings.calorieMode==='cut' ? 'cut' : 'bulk';
+const calorieMet = k => calorieMode()==='cut' ? (k>0 && k<=calorieTarget()) : k>=calorieTarget();
 
 const EQUIPMENT = { barbell:'Barbell', dumbbell:'Dumbbell', cable:'Cable', machine:'Machine' };
 const musclesOf = ex => (ex && (ex.muscles || (ex.muscle ? [ex.muscle] : []))) || [];
@@ -457,6 +476,27 @@ function computeWeeklyProteinDays(monday, sunday){
     cursor = addDaysISO(cursor,1);
   }
   return {days, metCount, total, loggedDays, target};
+}
+function caloriesForDate(iso){
+  const w = getWorkoutForDate(iso);
+  return w ? (Number(w.calories)||0) : 0;
+}
+function computeWeeklyCalories(monday, sunday){
+  const target = calorieTarget();
+  const today = todayISO();
+  const days = [];
+  let cursor = monday, metCount = 0, total = 0, loggedDays = 0;
+  while(cursor <= sunday){
+    const kcal = caloriesForDate(cursor);
+    const isFuture = cursor > today;
+    if(!isFuture){
+      if(kcal>0){ loggedDays++; total += kcal; }
+      if(calorieMet(kcal)) metCount++;
+    }
+    days.push({date:cursor, kcal, met: calorieMet(kcal), isFuture});
+    cursor = addDaysISO(cursor,1);
+  }
+  return {days, metCount, total, loggedDays, target, avg: loggedDays ? Math.round(total/loggedDays) : 0};
 }
 function computeProteinTargetStreak(){
   const target = state.settings.dailyProteinTarget || 150;
@@ -685,6 +725,14 @@ function showToast(msg){
 /* ============================= RENDER: SHELL ============================= */
 function renderShell(){
   document.getElementById('streak-pill').textContent = `🔥 ${computeCurrentStreak()}`;
+  let anyMenu = false;
+  document.querySelectorAll('#hamburger-menu button').forEach(b=>{
+    const on = isTracked(b.dataset.sectionId.replace('section-',''));
+    b.style.display = on ? '' : 'none';
+    if(on) anyMenu = true;
+  });
+  const hb = document.getElementById('hamburger-btn');
+  if(hb) hb.style.display = anyMenu ? '' : 'none';
   document.getElementById('tagline').textContent = TAGLINES[new Date().getDate() % TAGLINES.length];
   document.querySelectorAll('#bottom-nav button').forEach(btn=>{
     btn.classList.toggle('active', btn.dataset.tab===ui.currentTab);
@@ -758,12 +806,37 @@ function renderLogTab(){
     html += renderExercisePicker();
   }
 
-  const proteinTarget = state.settings.dailyProteinTarget || 150;
-  const proteinGrams = workout ? (Number(workout.proteinGrams)||0) : 0;
-  const proteinPct = Math.min(100, Math.round((proteinGrams/proteinTarget)*100));
-  const proteinStatus = proteinGrams>=proteinTarget ? 'status-green' : (proteinGrams>0 ? 'status-amber' : 'status-red');
-  html += `<h2 class="section-title">Nutrition</h2>
-  <div class="card">
+  const showCal = isTracked('calories'), showProtein = isTracked('protein');
+  if(showCal || showProtein) html += `<h2 class="section-title">Nutrition</h2>`;
+  if(showCal){
+    const kcalTarget = calorieTarget();
+    const kcal = workout ? (Number(workout.calories)||0) : 0;
+    const kcalPct = Math.min(100, Math.round((kcal/kcalTarget)*100));
+    const isCut = calorieMode()==='cut';
+    const kcalStatus = isCut ? (kcal>kcalTarget ? 'status-red' : (kcal>0 ? 'status-green' : 'status-amber'))
+                             : (kcal>=kcalTarget ? 'status-green' : (kcal>0 ? 'status-amber' : 'status-red'));
+    const kcalNote = isCut
+      ? (kcal>kcalTarget ? ` · over by ${kcal-kcalTarget}` : (kcal>0 ? ` · ${kcalTarget-kcal} left` : ''))
+      : (kcal>=kcalTarget ? ' — target hit 🔥' : (kcal>0 ? ` · ${kcalTarget-kcal} to go` : ''));
+    html += `<div class="card">
+    <div class="row">
+      <div><div class="name">🔥 Calories</div></div>
+    </div>
+    <div class="row" style="margin-top:10px;gap:8px;">
+      <button class="btn secondary small" data-action="calorie-adjust" data-delta="-100">-100</button>
+      <input type="number" id="calorie-input" min="0" step="1" inputmode="numeric" value="${kcal}" style="text-align:center;">
+      <button class="btn secondary small" data-action="calorie-adjust" data-delta="250">+250</button>
+    </div>
+    <div class="bar-track" style="margin-top:10px;"><div class="bar-fill ${kcalStatus}" style="width:${kcalPct}%;"></div></div>
+    <div style="font-size:12px;color:var(--text-dim);margin-top:6px;text-align:center;">${kcal} of ${kcalTarget} kcal today${kcalNote}</div>
+  </div>`;
+  }
+  if(showProtein){
+    const proteinTarget = state.settings.dailyProteinTarget || 150;
+    const proteinGrams = workout ? (Number(workout.proteinGrams)||0) : 0;
+    const proteinPct = Math.min(100, Math.round((proteinGrams/proteinTarget)*100));
+    const proteinStatus = proteinGrams>=proteinTarget ? 'status-green' : (proteinGrams>0 ? 'status-amber' : 'status-red');
+    html += `<div class="card">
     <div class="row">
       <div><div class="name">🥩 Protein</div></div>
     </div>
@@ -775,6 +848,7 @@ function renderLogTab(){
     <div class="bar-track" style="margin-top:10px;"><div class="bar-fill ${proteinStatus}" style="width:${proteinPct}%;"></div></div>
     <div style="font-size:12px;color:var(--text-dim);margin-top:6px;text-align:center;">${proteinGrams}g of ${proteinTarget}g today${proteinGrams>=proteinTarget ? ' — target hit 💪' : ''}</div>
   </div>`;
+  }
 
   return html;
 }
@@ -794,7 +868,7 @@ function renderCardioTab(){
   </div>`;
 
   const coreMinutes = workout ? (Number(workout.coreMinutes)||0) : 0;
-  html += `<h2 class="section-title" id="section-core">Core</h2>
+  if(isTracked('core')) html += `<h2 class="section-title" id="section-core">Core</h2>
   <div class="card">
     <div class="row">
       <div><div class="name">🧱 Core Work</div></div>
@@ -809,7 +883,8 @@ function renderCardioTab(){
 
   const runs = workout ? (workout.runs||[]) : [];
   const boxingMinutes = workout ? (Number(workout.boxingMinutes)||0) : 0;
-  html += `<h2 class="section-title" id="section-running">Cardio</h2>
+  if(isTracked('running') || isTracked('boxing')) html += `<h2 class="section-title" id="section-running">Cardio</h2>`;
+  if(isTracked('running')) html += `
   <div class="card">
     <div class="row">
       <div><div class="name">🏃 Running</div><div class="muscle-tag">Distance & Time</div></div>
@@ -826,7 +901,8 @@ function renderCardioTab(){
       </tbody>
     </table>` : `<div style="font-size:12px;color:var(--text-dim);margin-top:8px;">No runs logged today.</div>`}
     <button class="btn secondary small add-set-btn" data-action="add-run">+ Add Run</button>
-  </div>
+  </div>`;
+  if(isTracked('boxing')) html += `
   <div class="card" id="section-boxing">
     <div class="row">
       <div><div class="name">🥊 Boxing</div><div class="muscle-tag">Bag & Shadow Work</div></div>
@@ -840,7 +916,7 @@ function renderCardioTab(){
   </div>`;
 
   const stretchMinutes = workout ? (Number(workout.stretchMinutes)||0) : 0;
-  html += `<h2 class="section-title" id="section-stretch">Stretch</h2>
+  if(isTracked('stretch')) html += `<h2 class="section-title" id="section-stretch">Stretch</h2>
   <div class="card">
     <div class="row">
       <div><div class="name">🧘 Stretch</div></div>
@@ -852,6 +928,9 @@ function renderCardioTab(){
     </div>
   </div>`;
 
+  if(!['core','running','boxing','stretch'].some(isTracked)){
+    html += `<div class="empty-state">Nothing is being tracked here right now.<br>Turn activities back on in Goals → Adjust.</div>`;
+  }
   return html;
 }
 
@@ -935,6 +1014,7 @@ function renderWeekTab(){
     const st = stats[m.id];
     const isCore = m.id==='core';
     const isStretch = m.id==='stretch';
+    if((isCore && !isTracked('core')) || (isStretch && !isTracked('stretch'))) return;
     const target = isStretch ? (state.settings.weeklyStretchSessionTarget || 3) : isCore ? (state.settings.weeklyCoreMinuteTarget || 20) : (targets[m.id] || 10);
     const measure = isStretch ? st.sessions : isCore ? st.minutes : st.sets;
     const pct = Math.min(100, Math.round((measure/target)*100));
@@ -966,43 +1046,55 @@ function renderWeekTab(){
   if(cardioStats.boxing.minutes>=boxTarget) boxStatus='status-green';
   else if(cardioStats.boxing.sessions>=1) boxStatus='status-amber';
 
-  html += `<h2 class="section-title">Cardio</h2><div class="card">
-    <div class="muscle-row">
+  if(isTracked('running') || isTracked('boxing')) html += `<h2 class="section-title">Cardio</h2><div class="card">
+    ${isTracked('running') ? `<div class="muscle-row">
       <div class="muscle-emoji">🏃</div>
       <div class="muscle-info">
         <div class="muscle-name-line"><span>Running</span><span style="color:var(--text-dim);">${cardioStats.running.sessions}/${runTarget} runs · ${cardioStats.running.distance.toFixed(1)} km</span></div>
         <div class="bar-track"><div class="bar-fill ${runStatus}" style="width:${runPct}%;"></div></div>
       </div>
-    </div>
-    <div class="muscle-row">
+    </div>` : ''}
+    ${isTracked('boxing') ? `<div class="muscle-row">
       <div class="muscle-emoji">🥊</div>
       <div class="muscle-info">
         <div class="muscle-name-line"><span>Boxing</span><span style="color:var(--text-dim);">${cardioStats.boxing.sessions} session${cardioStats.boxing.sessions===1?'':'s'} · ${cardioStats.boxing.minutes} min</span></div>
         <div class="bar-track"><div class="bar-fill ${boxStatus}" style="width:${boxPct}%;"></div></div>
       </div>
-    </div>
+    </div>` : ''}
   </div>`;
 
-  const proteinWeek = computeWeeklyProteinDays(monday, sunday);
-  html += `<h2 class="section-title">Nutrition</h2><div class="card">
+  const weekDots = days => days.map(d=>{
+    const dow = parseISO(d.date).toLocaleDateString(undefined,{weekday:'narrow'});
+    const v = d.grams!==undefined ? d.grams : d.kcal;
+    const dotColor = d.isFuture ? 'var(--border)' : (d.met ? 'var(--good)' : (v>0 ? 'var(--warn)' : 'var(--bad)'));
+    return `<div style="flex:1;text-align:center;">
+      <div style="font-size:10px;color:var(--text-dim);">${dow}</div>
+      <div style="width:18px;height:18px;border-radius:50%;margin:4px auto 0;background:${dotColor};opacity:${d.isFuture?0.35:1};"></div>
+    </div>`;
+  }).join('');
+  if(isTracked('calories') || isTracked('protein')) html += `<h2 class="section-title">Nutrition</h2>`;
+  if(isTracked('calories')){
+    const calWeek = computeWeeklyCalories(monday, sunday);
+    html += `<div class="card">
+    <div class="row">
+      <div><div class="name">🔥 Calories</div><div class="muscle-tag">${calWeek.metCount}/7 days ${calorieMode()==='cut' ? 'under' : 'hit'} ${calWeek.target} kcal${calWeek.loggedDays ? ` · avg ${calWeek.avg} kcal/day` : ''}</div></div>
+    </div>
+    <div class="row" style="margin-top:10px;">${weekDots(calWeek.days)}</div>
+  </div>`;
+  }
+  if(isTracked('protein')){
+    const proteinWeek = computeWeeklyProteinDays(monday, sunday);
+    html += `<div class="card">
     <div class="row">
       <div><div class="name">🥩 Protein</div><div class="muscle-tag">${proteinWeek.metCount}/7 days hit ${proteinWeek.target}g</div></div>
     </div>
-    <div class="row" style="margin-top:10px;">
-      ${proteinWeek.days.map(d=>{
-        const dow = parseISO(d.date).toLocaleDateString(undefined,{weekday:'narrow'});
-        const dotColor = d.isFuture ? 'var(--border)' : (d.met ? 'var(--good)' : (d.grams>0 ? 'var(--warn)' : 'var(--bad)'));
-        return `<div style="flex:1;text-align:center;">
-          <div style="font-size:10px;color:var(--text-dim);">${dow}</div>
-          <div style="width:18px;height:18px;border-radius:50%;margin:4px auto 0;background:${dotColor};opacity:${d.isFuture?0.35:1};"></div>
-        </div>`;
-      }).join('')}
-    </div>
+    <div class="row" style="margin-top:10px;">${weekDots(proteinWeek.days)}</div>
   </div>`;
+  }
 
   html += `<div style="font-size:11px;color:var(--text-dim);text-align:center;margin:-4px 0 14px;">Adjust weekly targets on the Goals tab</div>`;
 
-  const undertrained = MUSCLE_GROUPS.filter(m=> stats[m.id].sessions===0);
+  const undertrained = MUSCLE_GROUPS.filter(m=> stats[m.id].sessions===0 && !(m.id==='core' && !isTracked('core')) && !(m.id==='stretch' && !isTracked('stretch')));
   if(ui.weekOffset===0){
     if(undertrained.length){
       html += `<div class="card" style="border-color:var(--warn);">
@@ -1163,14 +1255,22 @@ function renderGoalsTab(){
   const boxTarget = state.settings.weeklyBoxingMinuteTarget || 60;
   const proteinTargetVal = state.settings.dailyProteinTarget || 150;
   html += `<div style="margin-top:18px;text-align:center;">
-    <a href="#" class="link-btn" id="toggle-target-settings" style="font-size:12px;">${ui.showTargetSettings?'Hide':'⚙ Adjust'} weekly targets</a>
+    <a href="#" class="link-btn" id="toggle-target-settings" style="font-size:12px;">${ui.showTargetSettings?'Hide':'⚙ Adjust'} targets & tracking</a>
   </div>`;
   if(ui.showTargetSettings){
     html += `<div class="card" style="margin-top:10px;">
+      <div style="font-weight:700;font-size:13px;margin-bottom:2px;">Tracking</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">Switch off anything you're not tracking right now (e.g. calories outside a bulk). It disappears from Log, Week and Progress; your history is kept.</div>
+      ${TRACKABLES.map(t=>`<label class="row" style="margin-bottom:8px;cursor:pointer;">
+        <span style="font-size:13px;">${t.emoji} ${t.name}</span>
+        <input type="checkbox" style="width:auto;transform:scale(1.3);" data-action="toggle-tracking" data-track-id="${t.id}" ${isTracked(t.id)?'checked':''}>
+      </label>`).join('')}
+      <div style="border-top:1px solid var(--border);margin:12px 0 10px;"></div>
       <div style="font-size:12px;color:var(--text-dim);margin-bottom:8px;">These set the goalposts for the meters on the Week and Log tabs.</div>
       ${MUSCLE_GROUPS.map(m=>{
         const isCore = m.id==='core';
         const isStretch = m.id==='stretch';
+        if((isCore && !isTracked('core')) || (isStretch && !isTracked('stretch'))) return '';
         const val = isStretch ? (state.settings.weeklyStretchSessionTarget||3) : isCore ? (state.settings.weeklyCoreMinuteTarget||20) : (setTargets[m.id]||10);
         const label = isStretch ? '(sessions/week)' : isCore ? '(minutes)' : '(sets)';
         const action = isStretch ? 'set-stretch-target' : isCore ? 'set-core-target' : 'set-target';
@@ -1179,18 +1279,29 @@ function renderGoalsTab(){
           <input type="number" min="0" step="1" style="width:70px;" value="${val}" data-action="${action}" data-muscle="${m.id}">
         </div>`;
       }).join('')}
-      <div class="row" style="margin-bottom:8px;">
+      ${isTracked('running') ? `<div class="row" style="margin-bottom:8px;">
         <span style="font-size:13px;">🏃 Running target (runs/week)</span>
         <input type="number" min="0" step="1" style="width:70px;" value="${runTarget}" data-action="set-run-session-target">
-      </div>
-      <div class="row" style="margin-bottom:8px;">
+      </div>` : ''}
+      ${isTracked('boxing') ? `<div class="row" style="margin-bottom:8px;">
         <span style="font-size:13px;">🥊 Boxing target (min)</span>
         <input type="number" min="0" step="1" style="width:70px;" value="${boxTarget}" data-action="set-boxing-target">
+      </div>` : ''}
+      ${isTracked('calories') ? `<div class="row" style="margin-bottom:8px;">
+        <span style="font-size:13px;">🔥 Calorie target (kcal/day)</span>
+        <input type="number" min="0" step="50" style="width:80px;" value="${calorieTarget()}" data-action="set-calorie-target">
       </div>
       <div class="row" style="margin-bottom:8px;">
+        <span style="font-size:13px;">🔥 Calorie goal</span>
+        <select data-action="set-calorie-mode" style="width:auto;">
+          <option value="bulk" ${calorieMode()==='bulk'?'selected':''}>Bulk — reach it</option>
+          <option value="cut" ${calorieMode()==='cut'?'selected':''}>Cut — stay under</option>
+        </select>
+      </div>` : ''}
+      ${isTracked('protein') ? `<div class="row" style="margin-bottom:8px;">
         <span style="font-size:13px;">🥩 Protein target (g/day)</span>
         <input type="number" min="0" step="5" style="width:70px;" value="${proteinTargetVal}" data-action="set-protein-target">
-      </div>
+      </div>` : ''}
     </div>`;
   }
 
@@ -1339,7 +1450,7 @@ function renderProgressTab(){
 
   html += `<h2 class="section-title">Exercise Progress</h2>` + renderExerciseProgress();
 
-  html += `<h2 class="section-title">Cardio</h2>
+  if(isTracked('running') || isTracked('boxing')) html += `<h2 class="section-title">Cardio</h2>
   <div class="card">
     <div class="stat-grid">
       <div class="stat-box"><div class="num">${stats.totalRunningKm.toFixed(1)}</div><div class="lbl">Total km run</div></div>
@@ -1349,10 +1460,22 @@ function renderProgressTab(){
     <div class="canvas-wrap" style="height:180px;"><canvas id="cardio-chart"></canvas></div>
   </div>`;
 
-  const proteinSeries14 = computeProteinSeries(14);
-  const avgProtein7 = Math.round(computeProteinSeries(7).reduce((s,p)=>s+p.grams,0)/7);
-  html += `<h2 class="section-title">Nutrition</h2>
-  <div class="card">
+  if(isTracked('calories') || isTracked('protein')) html += `<h2 class="section-title">Nutrition</h2>`;
+  if(isTracked('calories')){
+    const calSeries7 = Array.from({length:7},(_,k)=> caloriesForDate(addDaysISO(todayISO(), -k)));
+    const loggedCal = calSeries7.filter(v=>v>0);
+    const avgCal7 = loggedCal.length ? Math.round(loggedCal.reduce((a,b)=>a+b,0)/loggedCal.length) : 0;
+    const calHit7 = calSeries7.filter(calorieMet).length;
+    html += `<div class="card">
+    <div class="stat-grid">
+      <div class="stat-box"><div class="num">${avgCal7}</div><div class="lbl">Avg kcal/day (7d, logged days)</div></div>
+      <div class="stat-box"><div class="num">${calHit7}/7</div><div class="lbl">Days ${calorieMode()==='cut' ? 'under' : 'at'} ${calorieTarget()} kcal</div></div>
+    </div>
+  </div>`;
+  }
+  if(isTracked('protein')){
+    const avgProtein7 = Math.round(computeProteinSeries(7).reduce((s,p)=>s+p.grams,0)/7);
+    html += `<div class="card">
     <div class="stat-grid">
       <div class="stat-box"><div class="num">${avgProtein7}g</div><div class="lbl">Avg protein/day (7d)</div></div>
       <div class="stat-box"><div class="num">${stats.proteinStreak}</div><div class="lbl">Day streak hitting target</div></div>
@@ -1360,6 +1483,7 @@ function renderProgressTab(){
     <div style="font-size:12px;color:var(--text-dim);margin-top:10px;">Daily protein (last 14 days)</div>
     <div class="canvas-wrap" style="height:180px;"><canvas id="protein-chart"></canvas></div>
   </div>`;
+  }
 
   const hasRealData = state.workouts.some(dayHasActivity);
   const daysSinceExport = state.lastExportAt ? daysBetweenISO(state.lastExportAt, todayISO()) : null;
@@ -1505,7 +1629,17 @@ function renderProteinChart(){
 }
 
 /* ============================= EVENT WIRING ============================= */
+function updateScrollFab(){
+  const fab = document.getElementById('scroll-fab'); const doc = document.documentElement;
+  if(!fab || !doc) return;
+  const scrollable = doc.scrollHeight - window.innerHeight > 200;
+  const nearBottom = window.scrollY + window.innerHeight >= doc.scrollHeight - 120;
+  fab.style.display = scrollable ? 'flex' : 'none';
+  fab.textContent = nearBottom ? '↑' : '↓';
+  fab.setAttribute('aria-label', nearBottom ? 'Scroll to top' : 'Scroll to bottom');
+}
 function afterRender(){
+  setTimeout(updateScrollFab, 0);
   if(ui.currentTab==='progress'){ renderProgressChart(); renderCardioChart(); renderProteinChart(); }
   if(ui.currentTab==='goals') renderGoalFields();
 }
@@ -1538,6 +1672,12 @@ function addExerciseEntryToLog(exercise){
 }
 
 document.addEventListener('click', function(e){
+  if(e.target.id==='scroll-fab'){
+    const doc = document.documentElement;
+    const nearBottom = window.scrollY + window.innerHeight >= doc.scrollHeight - 120;
+    window.scrollTo({top: nearBottom ? 0 : doc.scrollHeight, behavior:'smooth'});
+    return;
+  }
   const hamburgerMenu = document.getElementById('hamburger-menu');
   if(hamburgerMenu && !hamburgerMenu.classList.contains('hidden') && e.target.id!=='hamburger-btn' && !hamburgerMenu.contains(e.target)){
     hamburgerMenu.classList.add('hidden');
@@ -1671,6 +1811,18 @@ document.addEventListener('click', function(e){
       showToast(streak>1 ? `Logged! 🔥 ${streak}-day streak` : 'Nice, first bit of work logged today 💪');
       checkForNewBadges();
     }
+    return;
+  }
+  if(action==='calorie-adjust'){
+    const delta = Number(actionEl.dataset.delta);
+    const workout = getOrCreateWorkoutForDate(ui.logDate);
+    const target = calorieTarget();
+    const before = Number(workout.calories)||0;
+    workout.calories = Math.max(0, before + delta);
+    saveState();
+    renderShell();
+    if(calorieMode()==='cut'){ if(before <= target && workout.calories > target) showToast('⚠️ Over your calorie target'); }
+    else if(before < target && workout.calories >= target) showToast('🔥 Calorie target hit for today!');
     return;
   }
   if(action==='protein-adjust'){
@@ -1867,6 +2019,21 @@ document.addEventListener('input', function(e){
     saveState();
     return;
   }
+  if(e.target.dataset.action==='set-calorie-target'){
+    state.settings.dailyCalorieTarget = Number(e.target.value)||0;
+    saveState();
+    return;
+  }
+  if(e.target.id==='calorie-input'){
+    const workout = getOrCreateWorkoutForDate(ui.logDate);
+    const target = calorieTarget();
+    const before = Number(workout.calories)||0;
+    workout.calories = Math.max(0, Number(e.target.value)||0);
+    saveState();
+    if(calorieMode()==='cut'){ if(before <= target && workout.calories > target) showToast('⚠️ Over your calorie target'); }
+    else if(before < target && workout.calories >= target) showToast('🔥 Calorie target hit for today!');
+    return;
+  }
   if(e.target.dataset.action==='set-protein-target'){
     state.settings.dailyProteinTarget = Number(e.target.value)||0;
     saveState();
@@ -1887,6 +2054,19 @@ document.addEventListener('input', function(e){
 });
 
 document.addEventListener('change', function(e){
+  if(e.target.dataset && e.target.dataset.action==='set-calorie-mode'){
+    state.settings.calorieMode = e.target.value==='cut' ? 'cut' : 'bulk';
+    saveState();
+    renderShell();
+    return;
+  }
+  if(e.target.dataset && e.target.dataset.action==='toggle-tracking'){
+    if(!state.settings.tracking) state.settings.tracking = {};
+    state.settings.tracking[e.target.dataset.trackId] = e.target.checked;
+    saveState();
+    renderShell();
+    return;
+  }
   if(e.target.id==='goal-exercise'){ renderGoalEquip(); return; }
   if(e.target.id==='exercise-select-for-progress'){
     ui.progressExerciseId = e.target.value;
@@ -1922,6 +2102,8 @@ function resetViewportAfterKeyboard(){
   setTimeout(()=>{ window.scrollTo(window.scrollX, window.scrollY); }, 350);
 }
 document.addEventListener('focusout', resetViewportAfterKeyboard);
+window.addEventListener('scroll', updateScrollFab, {passive:true});
+window.addEventListener('resize', updateScrollFab);
 if(window.visualViewport){
   window.visualViewport.addEventListener('resize', ()=>{
     if(window.visualViewport.height >= window.innerHeight - 1) resetViewportAfterKeyboard();
